@@ -1,0 +1,54 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Éditeurs et IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Outils locaux Codex / agents
+.codex/
+.agents/
+
+# Variables d’environnement et secrets
+.env
+.env.*
+!.env.example
+
+# Dépendances et sorties de build éventuelles
+node_modules/
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+out/
+
+# Logs et couverture
+*.log
+coverage/
+.nyc_output/
+
+# Serveurs et caches Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Captures et artefacts temporaires de QA
+qa-output/
+screenshots/
+playwright-report/
+test-results/
+*.tmp
+*.temp
+
+mockup-?.png

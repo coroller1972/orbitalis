@@ -1,0 +1,2574 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#02070b">
+  <link rel="icon" href="data:,">
+  <title>Orbitalis — Modèle héliocentrique</title>
+  <style>
+    :root {
+      --space: #02070b;
+      --space-deep: #010407;
+      --panel: rgba(5, 13, 20, .90);
+      --panel-soft: rgba(7, 16, 24, .82);
+      --line: rgba(137, 164, 181, .34);
+      --line-soft: rgba(137, 164, 181, .16);
+      --text: #e8ebed;
+      --text-secondary: #a8b2b9;
+      --text-muted: #6f7e88;
+      --amber: #f4a62a;
+      --amber-bright: #ffc052;
+      --amber-soft: rgba(244, 166, 42, .12);
+      --focus: #f5f7f8;
+      --danger: #e88065;
+      --radius-panel: 11px;
+      --radius-control: 6px;
+      --panel-blur: 18px;
+      --shadow-panel: 0 18px 50px rgba(0, 0, 0, .42);
+      --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --info-width: clamp(360px, 24vw, 408px);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--space);
+      color: var(--text);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    button, input, select { font: inherit; }
+
+    button {
+      color: inherit;
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--amber-bright);
+      outline-offset: 3px;
+    }
+
+    #spaceCanvas:focus-visible {
+      outline: 1px solid rgba(244, 166, 42, .9);
+      outline-offset: -4px;
+    }
+
+    .app {
+      position: fixed;
+      inset: 0;
+      isolation: isolate;
+      overflow: hidden;
+      overflow: clip;
+      background: var(--space);
+    }
+
+    #spaceCanvas,
+    .labels-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #spaceCanvas {
+      z-index: 0;
+      display: block;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    #spaceCanvas.is-dragging { cursor: grabbing; }
+
+    .labels-layer {
+      z-index: 2;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .body-label {
+      position: absolute;
+      min-width: 44px;
+      min-height: 30px;
+      padding: 7px 9px 6px;
+      transform: translate(-50%, -100%);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: rgba(2, 7, 11, .62);
+      color: rgba(232, 235, 237, .74);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 1;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 180ms ease, color 180ms ease, border-color 180ms ease, background 180ms ease;
+    }
+
+    .body-label::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 100%;
+      width: 1px;
+      height: var(--connector, 12px);
+      background: linear-gradient(to bottom, rgba(156, 167, 175, .55), rgba(156, 167, 175, 0));
+    }
+
+    .body-label.is-visible { opacity: 1; pointer-events: auto; }
+    .body-label:hover,
+    .body-label.is-selected {
+      color: var(--text);
+      border-color: var(--line);
+      background: rgba(5, 13, 20, .88);
+    }
+    .body-label.is-selected { color: var(--amber-bright); }
+
+    .hud { position: absolute; z-index: 4; }
+
+    .brand {
+      top: max(38px, 4.2vh);
+      left: 3vw;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .brand-mark {
+      width: 62px;
+      height: 62px;
+      flex: 0 0 auto;
+      color: var(--amber);
+      filter: drop-shadow(0 0 12px rgba(244, 166, 42, .12));
+    }
+
+    .brand-word {
+      font-size: clamp(20px, 1.65vw, 28px);
+      font-weight: 400;
+      letter-spacing: .34em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .brand-subtitle {
+      margin-top: 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .23em;
+      text-transform: uppercase;
+    }
+
+    .sim-status {
+      top: max(42px, 4.7vh);
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 330px;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .sim-status-main {
+      font-family: var(--font-mono);
+      font-size: clamp(14px, 1.1vw, 18px);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-rule {
+      width: 34px;
+      height: 1px;
+      margin: 18px auto 0;
+      background: var(--amber);
+      box-shadow: 0 0 12px rgba(244, 166, 42, .32);
+    }
+
+    .language {
+      top: max(42px, 4.7vh);
+      right: 3.5vw;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: .13em;
+    }
+
+    .language button {
+      position: relative;
+      min-width: 34px;
+      min-height: 32px;
+      padding: 0 4px;
+      background: none;
+      color: var(--text-muted);
+      transition: color 180ms ease;
+    }
+
+    .language button::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -3px;
+      width: 18px;
+      height: 1px;
+      transform: translateX(-50%) scaleX(0);
+      background: var(--amber);
+      transition: transform 180ms ease;
+    }
+
+    .language button[aria-pressed="true"] { color: var(--text); }
+    .language button[aria-pressed="true"]::after { transform: translateX(-50%) scaleX(1); }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-panel);
+      background: linear-gradient(145deg, rgba(9, 18, 26, .93), var(--panel));
+      box-shadow: var(--shadow-panel), inset 0 1px 0 rgba(255,255,255,.018);
+      backdrop-filter: blur(var(--panel-blur));
+      -webkit-backdrop-filter: blur(var(--panel-blur));
+    }
+
+    .control-panel {
+      left: 1.7vw;
+      bottom: max(46px, 6.2vh);
+      width: min(452px, 28vw);
+      min-width: 390px;
+      padding: 17px 18px 18px;
+      font-family: var(--font-mono);
+      transition: opacity 320ms ease, transform 320ms cubic-bezier(.22,1,.36,1);
+    }
+
+    .panel-heading {
+      display: flex;
+      align-items: center;
+      min-height: 32px;
+      gap: 13px;
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 400;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .panel-heading svg {
+      width: 23px;
+      height: 23px;
+      color: var(--text-secondary);
+      stroke-width: 1.25;
+    }
+
+    .dock-toggle {
+      display: none;
+      width: 100%;
+      padding: 0;
+      background: none;
+      text-align: left;
+    }
+
+    .control-body { overflow: hidden; }
+
+    .control-row {
+      display: grid;
+      align-items: center;
+      min-height: 54px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .speed-row {
+      grid-template-columns: 56px 1fr 48px;
+      gap: 10px;
+    }
+
+    .control-label {
+      color: var(--text-secondary);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .speed-output,
+    .zoom-output {
+      color: var(--amber-bright);
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      --progress: 42%;
+      width: 100%;
+      height: 24px;
+      margin: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 3px;
+      border-radius: 99px;
+      background: linear-gradient(to right, var(--amber) 0 var(--progress), rgba(156,167,175,.20) var(--progress) 100%);
+    }
+
+    input[type="range"]::-moz-range-track {
+      height: 3px;
+      border-radius: 99px;
+      background: rgba(156,167,175,.20);
+    }
+
+    input[type="range"]::-moz-range-progress { height: 3px; background: var(--amber); }
+
+    input[type="range"]::-webkit-slider-thumb {
+      width: 14px;
+      height: 14px;
+      margin-top: -5.5px;
+      appearance: none;
+      -webkit-appearance: none;
+      border: 2px solid var(--amber-bright);
+      border-radius: 50%;
+      background: var(--panel);
+      box-shadow: 0 0 0 2px rgba(244,166,42,.08);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--amber-bright);
+      border-radius: 50%;
+      background: var(--panel);
+    }
+
+    .zoom-row { min-height: 56px; }
+
+    .segmented {
+      display: grid;
+      width: 100%;
+      min-height: 38px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-control);
+      background: rgba(0, 0, 0, .12);
+    }
+
+    .zoom-segmented { grid-template-columns: 86px 1fr 86px; }
+
+    .segmented button,
+    .segmented .segment-value {
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      letter-spacing: .03em;
+      transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    .segmented button + *, .segmented * + button { border-left: 1px solid var(--line); }
+    .segmented button:hover { background: rgba(255,255,255,.035); color: var(--text); }
+    .segmented button:active { transform: translateY(1px); }
+
+    .zoom-symbol { font-family: var(--font-sans); font-size: 25px; font-weight: 200; line-height: 1; }
+    .zoom-output { color: var(--text-secondary); text-align: center; }
+
+    .toggle-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      min-height: 56px;
+    }
+
+    .toggle-control {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0 2px;
+      background: none;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+
+    .switch {
+      position: relative;
+      flex: 0 0 auto;
+      width: 38px;
+      height: 20px;
+      margin-left: 7px;
+      border: 1px solid var(--line);
+      border-radius: 99px;
+      background: rgba(111,126,136,.15);
+      transition: background 180ms ease, border-color 180ms ease;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      transition: transform 180ms ease, background 180ms ease;
+    }
+
+    .toggle-control[aria-pressed="true"] .switch {
+      border-color: rgba(244,166,42,.65);
+      background: var(--amber);
+    }
+
+    .toggle-control[aria-pressed="true"] .switch::after {
+      transform: translateX(18px);
+      background: #10161a;
+    }
+
+    .scale-block {
+      padding-top: 14px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .scale-label {
+      display: block;
+      margin: 0 0 10px 6px;
+    }
+
+    .scale-segmented { grid-template-columns: 1fr 1fr; }
+    .scale-segmented button { text-transform: uppercase; letter-spacing: .04em; }
+    .scale-segmented button + button { border-left: 0; }
+    .scale-segmented button[aria-pressed="true"] {
+      color: var(--amber-bright);
+      box-shadow: inset 0 0 0 1px rgba(244,166,42,.72);
+      background: var(--amber-soft);
+    }
+
+    .info-panel {
+      top: 15vh;
+      right: .8vw;
+      bottom: 4.8vh;
+      width: var(--info-width);
+      padding: 22px 22px 20px;
+      overflow: hidden auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line) transparent;
+      transform: translateX(calc(100% + 30px));
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 320ms cubic-bezier(.22,1,.36,1), opacity 240ms ease;
+    }
+
+    .app.body-open .info-panel {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .close-button {
+      position: absolute;
+      z-index: 2;
+      top: 13px;
+      right: 13px;
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: rgba(2,7,11,.32);
+      color: var(--text-secondary);
+      transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+    }
+
+    .close-button:hover { color: var(--text); background: rgba(255,255,255,.04); border-color: rgba(232,235,237,.42); }
+    .close-button svg { width: 17px; height: 17px; }
+
+    .portrait-block {
+      display: grid;
+      grid-template-columns: minmax(170px, 1fr) minmax(130px, .86fr);
+      align-items: center;
+      min-height: 226px;
+      gap: 8px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .portrait-wrap {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 210px;
+      height: 210px;
+      margin-inline: auto;
+      align-self: start;
+    }
+
+    .portrait-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      border: 1px solid rgba(137,164,181,.28);
+      border-radius: 50%;
+    }
+
+    #portraitCanvas { width: 170px; height: 170px; display: block; }
+
+    .body-title h2 {
+      margin: 0;
+      font-size: clamp(19px, 1.4vw, 23px);
+      font-weight: 400;
+      letter-spacing: .18em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .body-title { align-self: center; }
+
+    .body-title p {
+      margin: 12px 0 0;
+      color: #7892a7;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.45;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .stats { margin: 0; }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(112px, .9fr);
+      align-items: center;
+      min-height: 45px;
+      border-bottom: 1px solid var(--line-soft);
+      font-family: var(--font-mono);
+      font-size: 12.2px;
+      letter-spacing: .035em;
+    }
+
+    .stat-row dt {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .stat-row dd {
+      margin: 0;
+      color: #b8c1c7;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .fact {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 12px;
+      margin-top: 25px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      letter-spacing: .025em;
+    }
+
+    .info-icon {
+      display: grid;
+      place-items: center;
+      width: 23px;
+      height: 23px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .minimap {
+      right: calc(var(--info-width) + 1.4vw);
+      bottom: 11.8vh;
+      width: 320px;
+      margin: 0;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      pointer-events: none;
+      transition: right 320ms ease, opacity 240ms ease;
+    }
+
+    .minimap-title {
+      margin: 0 0 8px;
+      font-size: 10px;
+      letter-spacing: .05em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    #minimapCanvas { display: block; width: 320px; height: 145px; }
+
+    .microcopy {
+      right: calc(var(--info-width) + 3.7vw);
+      bottom: 4.8vh;
+      width: 380px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.8;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .model-note { margin-top: 11px; color: rgba(111,126,136,.72); }
+
+    .tooltip {
+      position: absolute;
+      z-index: 7;
+      max-width: 230px;
+      padding: 9px 12px;
+      border: 1px solid rgba(244,166,42,.34);
+      border-radius: 4px;
+      background: rgba(3, 9, 14, .94);
+      box-shadow: 0 10px 28px rgba(0,0,0,.4);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .045em;
+      text-transform: uppercase;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(12px, -50%);
+      transition: opacity 140ms ease;
+    }
+
+    .tooltip.is-visible { opacity: 1; }
+    .tooltip-distance { color: var(--text-secondary); }
+
+    .access-tools {
+      position: fixed;
+      z-index: 20;
+      left: 12px;
+      top: 12px;
+      transform: translateY(-180%);
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      transition: transform 180ms ease;
+    }
+
+    .access-tools:focus-within { transform: translateY(0); }
+    .access-tools label { align-self: center; font-size: 12px; }
+    .access-tools select {
+      min-width: 180px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--space);
+      color: var(--text);
+      padding: 0 10px;
+    }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .selftest-badge {
+      position: fixed;
+      z-index: 30;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--panel);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .05em;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .selftest-badge.is-visible { opacity: 1; }
+    .selftest-badge.is-pass { color: var(--amber-bright); border-color: rgba(244,166,42,.45); }
+    .selftest-badge.is-fail { color: var(--danger); border-color: rgba(232,128,101,.45); }
+
+    @media (max-width: 1279px) {
+      :root { --info-width: 360px; }
+      .control-panel { width: min(410px, 38vw); min-width: 360px; left: 20px; bottom: 28px; }
+      .info-panel { right: 18px; top: 128px; bottom: 24px; }
+      .minimap { width: 220px; right: auto; left: calc(30px + min(410px, 38vw)); bottom: 95px; }
+      #minimapCanvas { width: 220px; height: 100px; }
+      .microcopy { right: calc(var(--info-width) + 20px); bottom: 25px; width: 250px; }
+      .portrait-block { grid-template-columns: 150px 1fr; min-height: 210px; }
+      .portrait-wrap { width: 154px; height: 170px; align-self: center; }
+      .portrait-wrap::before { inset: 10px; }
+      #portraitCanvas { width: 128px; height: 128px; }
+    }
+
+    @media (max-width: 1279px) and (min-width: 768px) {
+      .toggle-row { gap: 7px; }
+      .toggle-control { padding-inline: 0; font-size: 10px; letter-spacing: 0; }
+      .switch { width: 34px; margin-left: 4px; }
+      .toggle-control[aria-pressed="true"] .switch::after { transform: translateX(14px); }
+    }
+
+    @media (max-width: 899px) {
+      .brand-subtitle { display: none; }
+      .brand-mark { width: 46px; height: 46px; }
+      .brand { gap: 12px; }
+      .sim-status { min-width: 245px; }
+    }
+
+    @media (max-width: 1100px) and (min-width: 768px) {
+      .microcopy { display: none; }
+    }
+
+    @media (max-width: 767px) {
+      :root { --info-width: 100%; }
+      .brand { top: max(12px, env(safe-area-inset-top)); left: 12px; gap: 9px; }
+      .brand-mark { width: 34px; height: 34px; }
+      .brand-word { font-size: 15px; letter-spacing: .24em; }
+      .sim-status { top: max(58px, calc(env(safe-area-inset-top) + 48px)); min-width: 210px; }
+      .sim-status-main { font-size: 10px; letter-spacing: .05em; }
+      .status-rule { margin-top: 8px; width: 24px; }
+      .language { top: max(10px, env(safe-area-inset-top)); right: 9px; gap: 2px; font-size: 10px; }
+      .language button { min-width: 44px; min-height: 44px; }
+
+      .control-panel {
+        left: 12px;
+        right: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        width: auto;
+        min-width: 0;
+        padding: 10px 12px 12px;
+      }
+      .dock-toggle { display: block; min-height: 44px; }
+      .desktop-heading { display: none; }
+      .control-panel.is-collapsed .control-body { display: none; }
+      .control-panel.is-collapsed { padding-bottom: 10px; }
+      .app.body-open .control-panel { opacity: 0; transform: translateY(12px); pointer-events: none; }
+      .panel-heading { font-size: 13px; }
+      .control-row { min-height: 50px; }
+      .toggle-row { gap: 5px; }
+      .toggle-control { min-height: 44px; padding-inline: 3px; font-size: 9px; }
+      .switch { margin-left: 4px; transform: scale(.9); transform-origin: right center; }
+      .zoom-segmented { grid-template-columns: 64px 1fr 64px; }
+      .segmented, .segmented button, .segmented .segment-value { min-height: 44px; }
+      input[type="range"] { height: 44px; }
+
+      .info-panel {
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-height: 68vh;
+        min-height: 430px;
+        padding: 17px 16px calc(18px + env(safe-area-inset-bottom));
+        border-right: 0;
+        border-bottom: 0;
+        border-left: 0;
+        border-radius: 16px 16px 0 0;
+        transform: translateY(calc(100% + 18px));
+      }
+      .app.body-open .info-panel { transform: translateY(0); }
+      .info-panel::before {
+        content: "";
+        display: block;
+        width: 38px;
+        height: 3px;
+        margin: 0 auto 7px;
+        border-radius: 99px;
+        background: var(--line);
+      }
+      .close-button { width: 44px; height: 44px; top: 10px; right: 10px; }
+      .portrait-block { grid-template-columns: 112px 1fr; min-height: 140px; padding-right: 38px; }
+      .portrait-wrap { width: 106px; height: 120px; }
+      .portrait-wrap::before { inset: 5px; }
+      #portraitCanvas { width: 94px; height: 94px; }
+      .body-title h2 { font-size: 18px; }
+      .body-title p { font-size: 10px; margin-top: 7px; }
+      .stat-row { min-height: 40px; font-size: 12px; }
+      .fact { margin-top: 17px; font-size: 12.5px; line-height: 1.55; }
+
+      .minimap {
+        top: max(91px, calc(env(safe-area-inset-top) + 80px));
+        right: 12px;
+        bottom: auto;
+        width: 132px;
+      }
+      .minimap-title { display: none; }
+      #minimapCanvas { width: 132px; height: 72px; }
+      .microcopy { display: none; }
+      .body-label { min-height: 44px; font-size: 8px; padding: 13px 7px 10px; }
+      .tooltip { display: none; }
+    }
+
+    @media (max-height: 720px) and (min-width: 768px) {
+      .control-panel { bottom: 20px; transform: scale(.9); transform-origin: left bottom; }
+      .info-panel { top: 105px; bottom: 20px; }
+      .portrait-block { min-height: 170px; }
+      .portrait-wrap { height: 150px; }
+      .fact { margin-top: 16px; }
+      .minimap { bottom: 70px; }
+      .microcopy { bottom: 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+      }
+    }
+
+    html.reduced-motion *, html.reduced-motion *::before, html.reduced-motion *::after {
+      scroll-behavior: auto !important;
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app body-open" id="app">
+    <canvas id="spaceCanvas" tabindex="0" aria-label="Simulation interactive du Système solaire"></canvas>
+    <div class="labels-layer" id="labelsLayer" aria-label="Corps célestes"></div>
+
+    <div class="access-tools">
+      <label for="bodySelect" data-i18n="selectBody">Sélectionner un astre</label>
+      <select id="bodySelect"></select>
+    </div>
+
+    <header class="hud brand" aria-label="Orbitalis">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="31" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="1.25" opacity=".85"/>
+        <circle cx="31" cy="32" r="20" fill="none" stroke="currentColor" stroke-width="1.25" opacity=".8"/>
+        <circle cx="31" cy="32" r="10" fill="none" stroke="currentColor" stroke-width="1" opacity=".66"/>
+        <circle cx="31" cy="32" r="3.5" fill="currentColor"/>
+        <circle cx="52" cy="39" r="4" fill="#e8ebed" stroke="#02070b" stroke-width="1.5"/>
+      </svg>
+      <div>
+        <div class="brand-word">Orbitalis</div>
+        <div class="brand-subtitle" data-i18n="modelSubtitle">Modèle héliocentrique</div>
+      </div>
+    </header>
+
+    <div class="hud sim-status" aria-live="off">
+      <div class="sim-status-main"><span id="dateDisplay">—</span> <span aria-hidden="true">·</span> <span id="speedDisplay">42,0×</span></div>
+      <div class="status-rule"></div>
+    </div>
+
+    <nav class="hud language" aria-label="Langue">
+      <button type="button" data-lang="fr" aria-pressed="true">FR</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </nav>
+
+    <section class="hud panel control-panel" id="controlPanel" aria-labelledby="simulationTitle">
+      <button class="dock-toggle" id="dockToggle" type="button" aria-expanded="true" aria-controls="controlBody">
+        <span class="panel-heading">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 6h7m4 0h7M3 12h3m4 0h11M3 18h10m4 0h4"/><circle cx="12" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="15" cy="18" r="2"/></svg>
+          <span data-i18n="simulation">Simulation</span>
+        </span>
+      </button>
+      <div class="panel-heading desktop-heading" id="simulationTitle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 6h7m4 0h7M3 12h3m4 0h11M3 18h10m4 0h4"/><circle cx="12" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="15" cy="18" r="2"/></svg>
+        <span data-i18n="simulation">Simulation</span>
+      </div>
+      <div class="control-body" id="controlBody">
+        <div class="control-row speed-row">
+          <label class="control-label" for="speedSlider" data-i18n="time">Temps</label>
+          <input id="speedSlider" type="range" min="0" max="100" step="1" value="42" aria-describedby="speedHint">
+          <output class="speed-output" id="speedOutput" for="speedSlider">42×</output>
+          <span class="sr-only" id="speedHint" data-i18n="speedHint">1× égale un jour simulé par seconde</span>
+        </div>
+        <div class="control-row zoom-row">
+          <div class="segmented zoom-segmented" role="group" aria-label="Zoom">
+            <button type="button" id="zoomOut" data-i18n-aria="zoomOut"><span class="zoom-symbol" aria-hidden="true">−</span></button>
+            <output class="segment-value zoom-output" id="zoomOutput">1,8×</output>
+            <button type="button" id="zoomIn" data-i18n-aria="zoomIn"><span class="zoom-symbol" aria-hidden="true">+</span></button>
+          </div>
+        </div>
+        <div class="control-row toggle-row">
+          <button class="toggle-control" id="labelsToggle" type="button" aria-pressed="true"><span data-i18n="labels">Noms</span><span class="switch" aria-hidden="true"></span></button>
+          <button class="toggle-control" id="orbitsToggle" type="button" aria-pressed="true"><span data-i18n="orbits">Orbites</span><span class="switch" aria-hidden="true"></span></button>
+          <button class="toggle-control" id="viewToggle" type="button" aria-pressed="true"><span data-i18n="perspective">Perspective</span><span class="switch" aria-hidden="true"></span></button>
+        </div>
+        <div class="scale-block">
+          <span class="control-label scale-label" data-i18n="scale">Échelle</span>
+          <div class="segmented scale-segmented" role="group" aria-label="Échelle des distances" id="scaleGroup">
+            <button type="button" id="compressedScale" aria-pressed="true" data-i18n="compressedShort">Condensée</button>
+            <button type="button" id="relativeScale" aria-pressed="false" data-i18n="relativeShort">Relative</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hud panel info-panel" id="infoPanel" aria-labelledby="bodyName" aria-hidden="false">
+      <button class="close-button" id="closeInfo" type="button" data-i18n-aria="close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="portrait-block">
+        <div class="portrait-wrap"><canvas id="portraitCanvas" width="300" height="300" aria-hidden="true"></canvas></div>
+        <div class="body-title"><h2 id="bodyName">Jupiter</h2><p id="bodyType">Géante gazeuse</p></div>
+      </div>
+      <dl class="stats">
+        <div class="stat-row"><dt data-i18n="diameter">Diamètre moyen</dt><dd id="statDiameter">—</dd></div>
+        <div class="stat-row"><dt data-i18n="mass">Masse</dt><dd id="statMass">—</dd></div>
+        <div class="stat-row"><dt data-i18n="meanDistance">Distance moyenne</dt><dd id="statMeanDistance">—</dd></div>
+        <div class="stat-row"><dt data-i18n="currentDistance">Distance actuelle</dt><dd id="statCurrentDistance">—</dd></div>
+        <div class="stat-row"><dt data-i18n="period">Période orbitale</dt><dd id="statPeriod">—</dd></div>
+        <div class="stat-row"><dt data-i18n="moons">Lunes connues</dt><dd id="statMoons">—</dd></div>
+      </dl>
+      <div class="fact"><span class="info-icon" aria-hidden="true">i</span><span id="bodyFact">—</span></div>
+    </section>
+
+    <figure class="hud minimap" aria-labelledby="minimapTitle">
+      <figcaption class="minimap-title" id="minimapTitle" data-i18n="overview">Vue d’ensemble</figcaption>
+      <canvas id="minimapCanvas" width="640" height="236" aria-hidden="true"></canvas>
+    </figure>
+
+    <div class="hud microcopy">
+      <div data-i18n="help">Glisser · Molette · Double-cliquer pour recentrer</div>
+      <div class="model-note" data-i18n="modelNote">Modèle képlérien simplifié</div>
+    </div>
+
+    <div class="tooltip" id="tooltip" role="tooltip" aria-hidden="true"><span id="tooltipName">Mars</span><span aria-hidden="true"> · </span><span class="tooltip-distance" id="tooltipDistance">1,52 UA</span></div>
+    <div class="sr-only" id="liveRegion" aria-live="polite"></div>
+    <div class="selftest-badge" id="selftestBadge"></div>
+  </div>
+
+  <script type="module">
+    const TAU = Math.PI * 2;
+    const DEG = Math.PI / 180;
+    const J2000_JD = 2451545.0;
+    const UNIX_EPOCH_JD = 2440587.5;
+    const PLUTO_A = 39.48168677;
+    const AU_KM = 149597870.7;
+    const params = new URLSearchParams(location.search);
+    const QA_MODE = params.get('qa') === '1';
+    const SELF_TEST_MODE = params.get('selftest') === '1';
+    const REDUCED_MOTION = params.get('reduced') === '1' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const HOVER_CAPABLE = matchMedia('(hover: hover)').matches;
+    if (REDUCED_MOTION) document.documentElement.classList.add('reduced-motion');
+
+    // JPL approximate J2000 elements (1800–2050), mean physical radii/masses.
+    // Earth uses the Earth–Moon barycenter elements and is rendered at that point.
+    // Known-moon counts are intentionally frozen to the NASA snapshot of 2026-07-26.
+    const BODY_DATA = [
+      {
+        id: 'sun', names: { fr: 'Soleil', en: 'Sun' }, type: { fr: 'Étoile', en: 'Star' },
+        diameterKm: 1392700, massKg: 1.9885e30, moonsKnown: 0, rotationDays: 25.45, orbit: null, // Approximate equatorial rotation; the Sun rotates differentially.
+        fact: {
+          fr: 'Sa lumière met environ huit minutes et vingt secondes à atteindre la Terre.',
+          en: 'Its light takes about eight minutes and twenty seconds to reach Earth.'
+        },
+        visual: { kind: 'sun', baseRadius: 43, colors: ['#fff7b1', '#ffc24a', '#f47b18'], axialTilt: 7.25 }
+      },
+      {
+        id: 'mercury', names: { fr: 'Mercure', en: 'Mercury' }, type: { fr: 'Planète tellurique', en: 'Terrestrial planet' },
+        diameterKm: 4878.8, massKg: 3.30103e23, moonsKnown: 0, rotationDays: 58.6462,
+        orbit: { a: .38709927, e: .20563593, period: 87.969, i: 7.00497902, node: 48.33076593, peri: 77.45779628, m0: 174.79252722 },
+        fact: { fr: 'Une année mercurienne ne dure que 88 jours terrestres.', en: 'A Mercurian year lasts only 88 Earth days.' },
+        visual: { kind: 'rock', baseRadius: 7, colors: ['#d8cec0', '#8c8174', '#383637'], axialTilt: .034 }
+      },
+      {
+        id: 'venus', names: { fr: 'Vénus', en: 'Venus' }, type: { fr: 'Planète tellurique', en: 'Terrestrial planet' },
+        diameterKm: 12103.6, massKg: 4.86731e24, moonsKnown: 0, rotationDays: -243.018,
+        orbit: { a: .72333566, e: .00677672, period: 224.701, i: 3.39467605, node: 76.67984255, peri: 131.60246718, m0: 50.37663232 },
+        fact: { fr: 'Son atmosphère dense en fait la planète la plus chaude du Système solaire.', en: 'Its dense atmosphere makes it the hottest planet in the Solar System.' },
+        visual: { kind: 'venus', baseRadius: 12, colors: ['#ffe7a5', '#d89a43', '#7d4f2c'], axialTilt: 177.36 }
+      },
+      {
+        id: 'earth', names: { fr: 'Terre', en: 'Earth' }, type: { fr: 'Planète tellurique', en: 'Terrestrial planet' },
+        diameterKm: 12742.0168, massKg: 5.97217e24, moonsKnown: 1, rotationDays: .99726968,
+        orbit: { a: 1.00000261, e: .01671123, period: 365.256, i: -.00001531, node: 0, peri: 102.93768193, m0: 357.52688973 },
+        fact: { fr: 'C’est le seul monde connu où l’eau liquide couvre la majorité de la surface.', en: 'It is the only known world where liquid water covers most of the surface.' },
+        visual: { kind: 'earth', baseRadius: 13, colors: ['#9bd4ff', '#2874ae', '#092b55'], axialTilt: 23.44 }
+      },
+      {
+        id: 'mars', names: { fr: 'Mars', en: 'Mars' }, type: { fr: 'Planète tellurique', en: 'Terrestrial planet' },
+        diameterKm: 6779, massKg: 6.41691e23, moonsKnown: 2, rotationDays: 1.02595676,
+        orbit: { a: 1.52371034, e: .09339410, period: 686.98, i: 1.84969142, node: 49.55953891, peri: 336.05637041, m0: 19.39019754 },
+        fact: { fr: 'Olympus Mons est le plus grand volcan connu du Système solaire.', en: 'Olympus Mons is the largest known volcano in the Solar System.' },
+        visual: { kind: 'mars', baseRadius: 10, colors: ['#efa269', '#b45431', '#512b25'], axialTilt: 25.19 }
+      },
+      {
+        id: 'jupiter', names: { fr: 'Jupiter', en: 'Jupiter' }, type: { fr: 'Géante gazeuse', en: 'Gas giant' },
+        diameterKm: 139822, massKg: 1.898125e27, moonsKnown: 101, rotationDays: .41354,
+        orbit: { a: 5.202887, e: .04838624, period: 4332.82, i: 1.30439695, node: 100.47390909, peri: 14.72847983, m0: 19.66796068 },
+        fact: { fr: 'Sa Grande Tache rouge est une tempête plus large que la Terre.', en: 'Its Great Red Spot is a storm wider than Earth.' },
+        visual: { kind: 'jupiter', baseRadius: 42, colors: ['#f1dcc1', '#bf8758', '#61463c'], axialTilt: 3.13 }
+      },
+      {
+        id: 'saturn', names: { fr: 'Saturne', en: 'Saturn' }, type: { fr: 'Géante gazeuse', en: 'Gas giant' },
+        diameterKm: 116464, massKg: 5.68317e26, moonsKnown: 274, rotationDays: .44401,
+        orbit: { a: 9.53667594, e: .05386179, period: 10755.699, i: 2.48599187, node: 113.66242448, peri: 92.59887831, m0: 317.35536592 },
+        fact: { fr: 'Ses anneaux sont surtout composés de glace, de poussière et de roche.', en: 'Its rings are made mostly of ice, dust, and rock.' },
+        visual: { kind: 'saturn', baseRadius: 31, colors: ['#f7dfa5', '#c99b59', '#6d543b'], axialTilt: 26.73, rings: 2.1 }
+      },
+      {
+        id: 'uranus', names: { fr: 'Uranus', en: 'Uranus' }, type: { fr: 'Géante de glace', en: 'Ice giant' },
+        diameterKm: 50724, massKg: 8.68099e25, moonsKnown: 28, rotationDays: -.71833,
+        orbit: { a: 19.18916464, e: .04725744, period: 30687.153, i: .77263783, node: 74.01692503, peri: 170.95427630, m0: 142.28382821 },
+        fact: { fr: 'Son axe est incliné de près de 98°, comme si la planète roulait sur son orbite.', en: 'Its axis tilts nearly 98°, as if the planet rolls along its orbit.' },
+        visual: { kind: 'uranus', baseRadius: 18, colors: ['#d4fbf6', '#77cfd1', '#286e7b'], axialTilt: 97.77, rings: 1.75 }
+      },
+      {
+        id: 'neptune', names: { fr: 'Neptune', en: 'Neptune' }, type: { fr: 'Géante de glace', en: 'Ice giant' },
+        diameterKm: 49244, massKg: 1.024092e26, moonsKnown: 16, rotationDays: .67125,
+        orbit: { a: 30.06992276, e: .00859048, period: 60190.03, i: 1.77004347, node: 131.78422574, peri: 44.96476227, m0: 259.91520804 },
+        fact: { fr: 'Les vents de Neptune sont les plus rapides mesurés dans le Système solaire.', en: 'Neptune has the fastest measured winds in the Solar System.' },
+        visual: { kind: 'neptune', baseRadius: 20, colors: ['#79aaff', '#225bc9', '#102966'], axialTilt: 28.32 }
+      },
+      {
+        id: 'pluto', names: { fr: 'Pluton', en: 'Pluto' }, type: { fr: 'Planète naine', en: 'Dwarf planet' },
+        diameterKm: 2376.6, massKg: 1.30246e22, moonsKnown: 5, rotationDays: -6.3872,
+        orbit: { a: 39.48168677, e: .24880766, period: 90553.017, i: 17.14175, node: 110.30347, peri: 224.06676, m0: 14.86205 },
+        fact: { fr: 'Une vaste région claire en forme de cœur marque sa surface glacée.', en: 'A vast bright heart-shaped region marks its icy surface.' },
+        visual: { kind: 'pluto', baseRadius: 6, colors: ['#d7bd9e', '#8e705b', '#3b3434'], axialTilt: 119.61 }
+      }
+    ];
+
+    const MOON_DATA = {
+      id: 'moon', aKm: 384400, e: .0549, period: 27.3217, i: 5.145, node: 125.045, peri: 83.353, m0: 134.963,
+      visualRadius: 3.1
+    };
+    const MOON_ORBIT = {
+      a: MOON_DATA.aKm / AU_KM, e: MOON_DATA.e, period: MOON_DATA.period,
+      i: MOON_DATA.i, node: MOON_DATA.node, peri: MOON_DATA.peri, m0: MOON_DATA.m0
+    };
+
+    const I18N = {
+      fr: {
+        modelSubtitle: 'Modèle héliocentrique', simulation: 'Simulation', time: 'Temps', speed: 'Vitesse',
+        speedHint: '1× égale un jour simulé par seconde', labels: 'Noms', orbits: 'Orbites', perspective: 'Perspective',
+        topDown: 'Vue du dessus', scale: 'Échelle', compressedShort: 'Condensée', relativeShort: 'Réelle',
+        compressed: 'Distances condensées', relative: 'Distances relatives', overview: 'Vue d’ensemble',
+        help: 'Glisser · Molette · Double-cliquer pour recentrer', modelNote: 'Modèle képlérien simplifié',
+        diameter: 'Diamètre', mass: 'Masse', meanDistance: 'Distance moyenne', currentDistance: 'Distance actuelle',
+        period: 'Période orbitale', moons: 'Lunes connues', close: 'Fermer la fiche', zoomIn: 'Zoomer', zoomOut: 'Dézoomer',
+        selectBody: 'Sélectionner un astre', canvasLabel: 'Simulation interactive du Système solaire', language: 'Langue',
+        selected: 'sélectionné', released: 'Sélection effacée', paused: 'En pause', day: 'jour', days: 'jours', year: 'an', years: 'ans',
+        currentTooltip: 'distance actuelle simulée', celestialBodies: 'Corps célestes', scaleAria: 'Échelle des distances', controlsOpen: 'Replier les contrôles', controlsClosed: 'Déplier les contrôles',
+        selftestPass: 'Auto-tests réussis', selftestFail: 'Échec des auto-tests'
+      },
+      en: {
+        modelSubtitle: 'Heliocentric model', simulation: 'Simulation', time: 'Time', speed: 'Speed',
+        speedHint: '1× equals one simulated day per second', labels: 'Labels', orbits: 'Orbits', perspective: 'Perspective',
+        topDown: 'Top-down', scale: 'Scale', compressedShort: 'Compressed', relativeShort: 'Relative',
+        compressed: 'Compressed distances', relative: 'Relative distances', overview: 'Overview',
+        help: 'Drag · Wheel · Double-click to recenter', modelNote: 'Simplified Keplerian model',
+        diameter: 'Diameter', mass: 'Mass', meanDistance: 'Mean distance', currentDistance: 'Current distance',
+        period: 'Orbital period', moons: 'Known moons', close: 'Close details', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+        selectBody: 'Select a celestial body', canvasLabel: 'Interactive Solar System simulation', language: 'Language',
+        selected: 'selected', released: 'Selection cleared', paused: 'Paused', day: 'day', days: 'days', year: 'year', years: 'years',
+        currentTooltip: 'current simulated distance', celestialBodies: 'Celestial bodies', scaleAria: 'Distance scale', controlsOpen: 'Collapse controls', controlsClosed: 'Expand controls',
+        selftestPass: 'Self-tests passed', selftestFail: 'Self-tests failed'
+      }
+    };
+
+    const Utils = {
+      clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
+      lerp: (a, b, t) => a + (b - a) * t,
+      smoothstep: t => t * t * (3 - 2 * t),
+      easeInOutCubic: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+      normAngle: angle => ((angle % TAU) + TAU) % TAU,
+      shortestAngle: (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a)),
+      damp(current, target, dt, duration) {
+        if (REDUCED_MOTION || duration <= 0) return target;
+        return Utils.lerp(current, target, 1 - Math.exp(-dt * 5 / duration));
+      },
+      seeded(seed) {
+        let value = seed >>> 0;
+        return () => {
+          value += 0x6D2B79F5;
+          let t = value;
+          t = Math.imul(t ^ t >>> 15, t | 1);
+          t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      },
+      hashString(value) {
+        let hash = 2166136261;
+        for (let index = 0; index < value.length; index += 1) {
+          hash ^= value.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+      }
+    };
+
+    const Data = (() => {
+      const bodies = BODY_DATA.map(body => ({
+        ...body,
+        state: { x: 0, y: 0, z: 0, rAU: body.orbit ? body.orbit.a : 0, screenX: 0, screenY: 0, depth: 0, renderRadius: body.visual.baseRadius, spin: 0 }
+      }));
+      const byId = new Map(bodies.map(body => [body.id, body]));
+
+      function createStars(seed = 0x0B17A115) {
+        const random = Utils.seeded(seed);
+        return Array.from({ length: 300 }, (_, index) => ({
+          x: random(), y: random(), size: .35 + Math.pow(random(), 3) * 1.65,
+          alpha: .18 + random() * .7, phase: random() * TAU, twinkle: index % 7 === 0,
+          warm: random() > .87
+        }));
+      }
+
+      function createAsteroids(seed = 0xA57E2015) {
+        const random = Utils.seeded(seed);
+        return Array.from({ length: 480 }, () => {
+          const a = 2.1 + random() * 1.2;
+          return {
+            orbit: {
+              a, e: random() * .12, period: 365.256 * Math.pow(a, 1.5),
+              i: -10 + random() * 20, node: random() * 360, peri: random() * 360, m0: random() * 360
+            },
+            alpha: .18 + random() * .48, size: .35 + random() * 1.05,
+            state: { x: 0, y: 0, z: 0, rAU: a, screenX: 0, screenY: 0, depth: 0 }
+          };
+        });
+      }
+
+      return { bodies, byId, stars: createStars(), asteroids: createAsteroids(), createAsteroids };
+    })();
+
+    const OrbitalEngine = (() => {
+      const basisCache = new WeakMap();
+      const pathCache = new WeakMap();
+
+      function basisFor(orbit) {
+        let basis = basisCache.get(orbit);
+        if (basis) return basis;
+        const omega = (orbit.peri - orbit.node) * DEG;
+        const inclination = orbit.i * DEG;
+        const node = orbit.node * DEG;
+        const cosW = Math.cos(omega), sinW = Math.sin(omega);
+        const cosI = Math.cos(inclination), sinI = Math.sin(inclination);
+        const cosN = Math.cos(node), sinN = Math.sin(node);
+        basis = {
+          xx: -(cosW * cosN - sinW * sinN * cosI),
+          xy: -(-sinW * cosN - cosW * sinN * cosI),
+          yx: -(cosW * sinN + sinW * cosN * cosI),
+          yy: -(-sinW * sinN + cosW * cosN * cosI),
+          zx: sinW * sinI,
+          zy: cosW * sinI,
+          eccentricY: Math.sqrt(1 - orbit.e * orbit.e)
+        };
+        basisCache.set(orbit, basis);
+        return basis;
+      }
+
+      function solveKepler(meanAnomaly, eccentricity) {
+        const M = Utils.normAngle(meanAnomaly);
+        let E = eccentricity < .8 ? M : Math.PI;
+        for (let iteration = 0; iteration < 16; iteration += 1) {
+          const delta = (E - eccentricity * Math.sin(E) - M) / (1 - eccentricity * Math.cos(E));
+          E -= delta;
+          if (Math.abs(delta) < 1e-10) break;
+        }
+        return E;
+      }
+
+      function transformOrbit(orbit, eccentricAnomaly, displayA, out) {
+        const basis = basisFor(orbit);
+        const xPrime = displayA * (Math.cos(eccentricAnomaly) - orbit.e);
+        const yPrime = displayA * basis.eccentricY * Math.sin(eccentricAnomaly);
+        // A 180° camera azimuth preserves the J2000 solution while matching the approved left-to-right observatory composition.
+        out.x = basis.xx * xPrime + basis.xy * yPrime;
+        out.y = basis.yx * xPrime + basis.yy * yPrime;
+        out.z = basis.zx * xPrime + basis.zy * yPrime;
+        return out;
+      }
+
+      function sampleOrbit(orbit, segments) {
+        let paths = pathCache.get(orbit);
+        if (!paths) {
+          paths = new Map();
+          pathCache.set(orbit, paths);
+        }
+        if (paths.has(segments)) return paths.get(segments);
+        const points = new Float32Array((segments + 1) * 3);
+        const point = { x: 0, y: 0, z: 0 };
+        for (let segment = 0; segment <= segments; segment += 1) {
+          transformOrbit(orbit, segment / segments * TAU, 1, point);
+          const offset = segment * 3;
+          points[offset] = point.x;
+          points[offset + 1] = point.y;
+          points[offset + 2] = point.z;
+        }
+        paths.set(segments, points);
+        return points;
+      }
+
+      function positionAt(orbit, julianDay, displayA, out) {
+        const meanAnomaly = (orbit.m0 * DEG) + TAU * (julianDay - J2000_JD) / orbit.period;
+        const eccentricAnomaly = solveKepler(meanAnomaly, orbit.e);
+        transformOrbit(orbit, eccentricAnomaly, displayA, out);
+        out.rAU = orbit.a * (1 - orbit.e * Math.cos(eccentricAnomaly));
+        out.E = eccentricAnomaly;
+        return out;
+      }
+
+      function updateBodies(julianDay, mapper) {
+        for (const body of Data.bodies) {
+          if (!body.orbit) {
+            body.state.x = body.state.y = body.state.z = body.state.rAU = 0;
+            continue;
+          }
+          positionAt(body.orbit, julianDay, mapper(body.orbit.a), body.state);
+        }
+      }
+
+      function moonPosition(julianDay, earthState, out) {
+        positionAt(MOON_ORBIT, julianDay, 18, out);
+        out.x += earthState.x;
+        out.y += earthState.y;
+        out.z += earthState.z;
+        return out;
+      }
+
+      return { solveKepler, transformOrbit, sampleOrbit, positionAt, updateBodies, moonPosition };
+    })();
+
+    const Layout = {
+      width: innerWidth, height: innerHeight, dpr: Math.min(devicePixelRatio || 1, 2),
+      focusX: innerWidth / 2, focusY: innerHeight * .48, infoWidth: 0, mobile: innerWidth < 768
+    };
+
+    const ScaleMapper = {
+      compressed(a, radius = .42 * Math.min(Layout.width, Layout.height)) {
+        return radius * Math.log(1 + a / .25) / Math.log(1 + PLUTO_A / .25);
+      },
+      relative(a, radius = .42 * Math.min(Layout.width, Layout.height)) {
+        return (radius / .2) * a / PLUTO_A;
+      },
+      map(a, blend = State.view.scaleBlend) {
+        return Utils.lerp(ScaleMapper.compressed(a), ScaleMapper.relative(a), blend);
+      }
+    };
+
+    const Clock = {
+      simJD: QA_MODE ? Date.UTC(2026, 6, 26, 12) / 86400000 + UNIX_EPOCH_JD : Date.now() / 86400000 + UNIX_EPOCH_JD,
+      speed: REDUCED_MOTION ? 0 : 42,
+      advance(dt) { if (!QA_MODE) this.simJD += Math.min(dt, .1) * this.speed; },
+      resetToNow() { this.simJD = Date.now() / 86400000 + UNIX_EPOCH_JD; }
+    };
+
+    function readLanguage() {
+      if (QA_MODE) return 'fr';
+      try {
+        const saved = localStorage.getItem('orbitalis-language');
+        if (saved === 'fr' || saved === 'en') return saved;
+      } catch (_) { /* Storage may be unavailable for file:// documents. */ }
+      return navigator.language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
+    }
+
+    const State = {
+      language: readLanguage(),
+      selectedId: 'jupiter', followId: 'jupiter', hoveredId: QA_MODE ? 'mars' : null,
+      labels: true, orbits: true,
+      view: { perspective: true, pitch: 38 * DEG, targetPitch: 38 * DEG, scaleMode: 'compressed', scaleBlend: 0, targetScaleBlend: 0 },
+      interaction: { pointers: new Map(), dragging: false, moved: false, startX: 0, startY: 0, lastX: 0, lastY: 0, pinchDistance: 0, clickTimer: 0, lastTap: 0, qaHoverReleased: false },
+      frame: 0, lastHudUpdate: 0, lastPortraitUpdate: 0, destroyed: false,
+      metrics: { frames: 0, lastSample: 0, fps: 0 }
+    };
+
+    const DOM = {
+      app: document.getElementById('app'), canvas: document.getElementById('spaceCanvas'), labelsLayer: document.getElementById('labelsLayer'),
+      portrait: document.getElementById('portraitCanvas'), minimap: document.getElementById('minimapCanvas'),
+      infoPanel: document.getElementById('infoPanel'), closeInfo: document.getElementById('closeInfo'), bodyName: document.getElementById('bodyName'), bodyType: document.getElementById('bodyType'), bodyFact: document.getElementById('bodyFact'),
+      statDiameter: document.getElementById('statDiameter'), statMass: document.getElementById('statMass'), statMeanDistance: document.getElementById('statMeanDistance'), statCurrentDistance: document.getElementById('statCurrentDistance'), statPeriod: document.getElementById('statPeriod'), statMoons: document.getElementById('statMoons'),
+      dateDisplay: document.getElementById('dateDisplay'), speedDisplay: document.getElementById('speedDisplay'),
+      speedSlider: document.getElementById('speedSlider'), speedOutput: document.getElementById('speedOutput'), zoomOutput: document.getElementById('zoomOutput'),
+      zoomIn: document.getElementById('zoomIn'), zoomOut: document.getElementById('zoomOut'), labelsToggle: document.getElementById('labelsToggle'), orbitsToggle: document.getElementById('orbitsToggle'), viewToggle: document.getElementById('viewToggle'), compressedScale: document.getElementById('compressedScale'), relativeScale: document.getElementById('relativeScale'),
+      tooltip: document.getElementById('tooltip'), tooltipName: document.getElementById('tooltipName'), tooltipDistance: document.getElementById('tooltipDistance'),
+      bodySelect: document.getElementById('bodySelect'), liveRegion: document.getElementById('liveRegion'),
+      controlPanel: document.getElementById('controlPanel'), controlBody: document.getElementById('controlBody'), dockToggle: document.getElementById('dockToggle'), selftestBadge: document.getElementById('selftestBadge')
+    };
+
+    const Camera = {
+      x: 0, y: 0, z: 0, targetX: 0, targetY: 0, targetZ: 0, zoom: 1.8, targetZoom: 1.8,
+      anchorId: null, anchorX: 0, anchorY: 0, anchorZ: 0,
+      initialized: false,
+      initialize() {
+        const followed = Data.byId.get(State.followId);
+        this.x = this.targetX = followed ? followed.state.x : 0;
+        this.y = this.targetY = followed ? followed.state.y : 0;
+        this.z = this.targetZ = followed ? followed.state.z : 0;
+        this.anchorId = followed?.id || null;
+        this.anchorX = followed?.state.x || 0;
+        this.anchorY = followed?.state.y || 0;
+        this.anchorZ = followed?.state.z || 0;
+        this.zoom = this.targetZoom = 1.8;
+        this.initialized = true;
+      },
+      update(dt) {
+        if (State.followId) {
+          const target = Data.byId.get(State.followId);
+          if (target) {
+            if (this.anchorId === target.id) {
+              const deltaX = target.state.x - this.anchorX;
+              const deltaY = target.state.y - this.anchorY;
+              const deltaZ = target.state.z - this.anchorZ;
+              this.x += deltaX; this.targetX += deltaX;
+              this.y += deltaY; this.targetY += deltaY;
+              this.z += deltaZ; this.targetZ += deltaZ;
+            }
+            this.anchorId = target.id;
+            this.anchorX = target.state.x;
+            this.anchorY = target.state.y;
+            this.anchorZ = target.state.z;
+            this.targetX = target.state.x;
+            this.targetY = target.state.y;
+            this.targetZ = target.state.z;
+          }
+        } else {
+          this.anchorId = null;
+        }
+        this.x = Utils.damp(this.x, this.targetX, dt, .75);
+        this.y = Utils.damp(this.y, this.targetY, dt, .75);
+        this.z = Utils.damp(this.z, this.targetZ, dt, .75);
+        this.zoom = Utils.damp(this.zoom, this.targetZoom, dt, .75);
+      },
+      project(point, out = point) {
+        const pitch = State.view.pitch;
+        const dx = point.x - this.x;
+        const dy = point.y - this.y;
+        const dz = point.z - this.z;
+        out.screenX = Layout.focusX + dx * this.zoom;
+        out.screenY = Layout.focusY + (dy * Math.cos(pitch) - dz * Math.sin(pitch)) * this.zoom;
+        out.depth = dy * Math.sin(pitch) + dz * Math.cos(pitch);
+        return out;
+      },
+      screenToPlane(screenX, screenY, zoom = this.zoom) {
+        const cosPitch = Math.max(.35, Math.cos(State.view.pitch));
+        return {
+          x: this.x + (screenX - Layout.focusX) / zoom,
+          y: this.y + (screenY - Layout.focusY) / (zoom * cosPitch)
+        };
+      },
+      zoomAt(factor, screenX = Layout.focusX, screenY = Layout.focusY) {
+        const before = this.screenToPlane(screenX, screenY);
+        const next = Utils.clamp(this.targetZoom * factor, .2, 20);
+        const cosPitch = Math.max(.35, Math.cos(State.view.pitch));
+        this.targetX = before.x - (screenX - Layout.focusX) / next;
+        this.targetY = before.y - (screenY - Layout.focusY) / (next * cosPitch);
+        this.targetZoom = next;
+      },
+      panBy(deltaX, deltaY) {
+        const cosPitch = Math.max(.35, Math.cos(State.view.pitch));
+        const worldX = deltaX / this.zoom;
+        const worldY = deltaY / (this.zoom * cosPitch);
+        this.x -= worldX; this.targetX -= worldX;
+        this.y -= worldY; this.targetY -= worldY;
+        State.followId = null;
+        this.anchorId = null;
+      },
+      focus(id, preserveZoom = false) {
+        const body = Data.byId.get(id);
+        if (!body) return;
+        State.followId = id;
+        this.anchorId = id;
+        this.anchorX = body.state.x;
+        this.anchorY = body.state.y;
+        this.anchorZ = body.state.z;
+        this.targetX = body.state.x;
+        this.targetY = body.state.y;
+        this.targetZ = body.state.z;
+        if (!preserveZoom) {
+          const desired = id === 'sun' ? 1.35 : (body.orbit && body.orbit.a < 2 ? 2.6 : 1.8);
+          this.targetZoom = Utils.clamp(Math.max(this.targetZoom, desired), .2, 20);
+        }
+      },
+      overview(clearSelection = true) {
+        State.followId = null;
+        this.anchorId = null;
+        if (clearSelection) UI.clearSelection(false);
+        this.targetX = 0;
+        this.targetY = 0;
+        this.targetZ = 0;
+        this.targetZoom = State.view.scaleMode === 'relative' ? .2 : 1;
+      }
+    };
+
+    const I18n = {
+      numberFormatters: new Map(),
+      dateFormatters: new Map(),
+      t(key) { return I18N[State.language][key] || key; },
+      number(value, options = {}) {
+        const locale = State.language === 'fr' ? 'fr-FR' : 'en-US';
+        const key = `${locale}:${JSON.stringify(options)}`;
+        let formatter = this.numberFormatters.get(key);
+        if (!formatter) {
+          formatter = new Intl.NumberFormat(locale, options);
+          this.numberFormatters.set(key, formatter);
+        }
+        return formatter.format(value);
+      },
+      formatAU(value) {
+        const digits = Math.abs(value) < 10 ? 3 : 2;
+        return `${this.number(value, { minimumFractionDigits: value === 0 ? 0 : Math.min(2, digits), maximumFractionDigits: digits })} ${State.language === 'fr' ? 'UA' : 'AU'}`;
+      },
+      formatDiameter(value) {
+        return `${this.number(Math.round(value), { maximumFractionDigits: 0 })} km`;
+      },
+      formatMass(value) {
+        if (!value) return '—';
+        const exponent = Math.floor(Math.log10(value));
+        const coefficient = value / Math.pow(10, exponent);
+        return `${this.number(coefficient, { minimumFractionDigits: 2, maximumFractionDigits: 3 })} × 10<sup>${exponent}</sup> kg`;
+      },
+      formatPeriod(days) {
+        if (!days) return '—';
+        if (days >= 730) {
+          const years = days / 365.256;
+          return `${this.number(years, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${this.t(years < 2 ? 'year' : 'years')}`;
+        }
+        return `${this.number(days, { maximumFractionDigits: days < 100 ? 2 : 0 })} ${this.t(days < 2 ? 'day' : 'days')}`;
+      },
+      formatDate(julianDay) {
+        const milliseconds = (julianDay - UNIX_EPOCH_JD) * 86400000;
+        const date = new Date(milliseconds);
+        if (!Number.isFinite(date.getTime())) return '—';
+        const locale = State.language === 'fr' ? 'fr-FR' : 'en-GB';
+        let formatter = this.dateFormatters.get(locale);
+        if (!formatter) {
+          formatter = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+          this.dateFormatters.set(locale, formatter);
+        }
+        return formatter.format(date).replace(',', '').toLocaleUpperCase(locale);
+      },
+      setLanguage(language, persist = true) {
+        if (language !== 'fr' && language !== 'en') return;
+        State.language = language;
+        document.documentElement.lang = language;
+        if (persist && !QA_MODE) {
+          try { localStorage.setItem('orbitalis-language', language); } catch (_) { /* Optional preference only. */ }
+        }
+        this.updateStatic();
+        UI.refreshLabels();
+        UI.updatePanel(true);
+        UI.updateHud(true);
+      },
+      updateStatic() {
+        document.querySelectorAll('[data-i18n]').forEach(element => { element.textContent = this.t(element.dataset.i18n); });
+        document.querySelectorAll('[data-i18n-aria]').forEach(element => { element.setAttribute('aria-label', this.t(element.dataset.i18nAria)); });
+        DOM.canvas.setAttribute('aria-label', this.t('canvasLabel'));
+        DOM.labelsLayer.setAttribute('aria-label', this.t('celestialBodies'));
+        DOM.controlPanel.setAttribute('aria-label', this.t('simulation'));
+        document.getElementById('scaleGroup').setAttribute('aria-label', this.t('scaleAria'));
+        document.querySelector('.language').setAttribute('aria-label', this.t('language'));
+        document.querySelectorAll('[data-lang]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.lang === State.language)));
+        DOM.viewToggle.querySelector('[data-i18n]').textContent = this.t('perspective');
+        DOM.dockToggle.setAttribute('aria-label', this.t(DOM.controlPanel.classList.contains('is-collapsed') ? 'controlsClosed' : 'controlsOpen'));
+        document.title = State.language === 'fr' ? 'Orbitalis — Modèle héliocentrique' : 'Orbitalis — Heliocentric model';
+      }
+    };
+
+    const UI = (() => {
+      const labelElements = new Map();
+
+      function initializeLabels() {
+        DOM.labelsLayer.replaceChildren();
+        DOM.bodySelect.replaceChildren();
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        DOM.bodySelect.append(placeholder);
+        for (const body of Data.bodies) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'body-label';
+          button.tabIndex = -1;
+          button.dataset.bodyId = body.id;
+          button.addEventListener('click', event => {
+            event.stopPropagation();
+            selectBody(body.id);
+          }, { signal: Lifecycle.signal });
+          DOM.labelsLayer.append(button);
+          labelElements.set(body.id, button);
+
+          const option = document.createElement('option');
+          option.value = body.id;
+          DOM.bodySelect.append(option);
+        }
+        refreshLabels();
+      }
+
+      function refreshLabels() {
+        const placeholder = DOM.bodySelect.options[0];
+        if (placeholder?.value === '') placeholder.textContent = I18n.t('selectBody');
+        for (const body of Data.bodies) {
+          const name = body.names[State.language];
+          const label = labelElements.get(body.id);
+          label.textContent = name;
+          label.setAttribute('aria-label', `${name}, ${body.type[State.language]}`);
+          const option = [...DOM.bodySelect.options].find(item => item.value === body.id);
+          if (option) option.textContent = name;
+        }
+        DOM.bodySelect.value = State.selectedId || '';
+      }
+
+      function updateLabels() {
+        const candidates = [];
+        const margin = Layout.mobile ? 12 : 24;
+        for (const body of Data.bodies) {
+          const label = labelElements.get(body.id);
+          const visible = State.labels && body.state.screenX > -60 && body.state.screenX < Layout.width + 60 && body.state.screenY > -40 && body.state.screenY < Layout.height + 50;
+          label.classList.toggle('is-visible', visible);
+          label.tabIndex = visible ? 0 : -1;
+          label.setAttribute('aria-hidden', String(!visible));
+          label.classList.toggle('is-selected', body.id === State.selectedId);
+          label.setAttribute('aria-pressed', String(body.id === State.selectedId));
+          if (!visible) continue;
+          candidates.push({ body, label, priority: body.id === State.selectedId ? 3 : body.id === State.hoveredId ? 2 : 1 });
+        }
+        candidates.sort((a, b) => b.priority - a.priority || a.body.state.screenY - b.body.state.screenY);
+        const occupied = [];
+        for (const item of candidates) {
+          const body = item.body;
+          const width = Math.max(58, item.label.textContent.length * (Layout.mobile ? 6 : 7) + 18);
+          const height = 25;
+          const baseGap = body.state.renderRadius + (Layout.mobile ? 12 : 17);
+          const offsets = [0, 18, -18, 34, -34, 52];
+          let chosenX = Utils.clamp(body.state.screenX, margin + width / 2, Layout.width - margin - width / 2);
+          let chosenY = body.state.screenY - baseGap;
+          for (const offset of offsets) {
+            const testX = Utils.clamp(body.state.screenX + offset, margin + width / 2, Layout.width - margin - width / 2);
+            const rect = { left: testX - width / 2, right: testX + width / 2, top: chosenY - height, bottom: chosenY };
+            if (!occupied.some(other => rect.left < other.right + 5 && rect.right > other.left - 5 && rect.top < other.bottom + 4 && rect.bottom > other.top - 4)) {
+              chosenX = testX;
+              occupied.push(rect);
+              break;
+            }
+          }
+          item.label.style.left = `${chosenX}px`;
+          item.label.style.top = `${chosenY}px`;
+          item.label.style.setProperty('--connector', `${Math.max(8, baseGap - 5)}px`);
+        }
+      }
+
+      function selectBody(id, announce = true) {
+        const body = Data.byId.get(id);
+        if (!body) return;
+        State.selectedId = id;
+        State.followId = id;
+        DOM.app.classList.add('body-open');
+        DOM.infoPanel.setAttribute('aria-hidden', 'false');
+        DOM.infoPanel.inert = false;
+        DOM.infoPanel.removeAttribute('inert');
+        DOM.controlPanel.inert = Layout.mobile;
+        DOM.controlPanel.toggleAttribute('inert', Layout.mobile);
+        DOM.controlPanel.setAttribute('aria-hidden', String(Layout.mobile));
+        Renderer.resize();
+        DOM.bodySelect.value = id;
+        Camera.focus(id);
+        updatePanel(true);
+        Renderer.drawPortrait(true);
+        if (announce) DOM.liveRegion.textContent = `${body.names[State.language]} ${I18n.t('selected')}`;
+      }
+
+      function clearSelection(announce = true) {
+        const returnFocus = DOM.infoPanel.contains(document.activeElement);
+        State.selectedId = null;
+        State.followId = null;
+        DOM.app.classList.remove('body-open');
+        DOM.infoPanel.setAttribute('aria-hidden', 'true');
+        if (returnFocus) DOM.canvas.focus({ preventScroll: true });
+        DOM.infoPanel.inert = true;
+        DOM.infoPanel.setAttribute('inert', '');
+        DOM.controlPanel.inert = false;
+        DOM.controlPanel.removeAttribute('inert');
+        DOM.controlPanel.setAttribute('aria-hidden', 'false');
+        DOM.bodySelect.value = '';
+        Renderer.resize();
+        if (announce) DOM.liveRegion.textContent = I18n.t('released');
+      }
+
+      function updatePanel(force = false) {
+        if (!State.selectedId) return;
+        const body = Data.byId.get(State.selectedId);
+        if (!body) return;
+        DOM.bodyName.textContent = body.names[State.language];
+        DOM.bodyType.textContent = body.type[State.language];
+        DOM.bodyFact.textContent = body.fact[State.language];
+        DOM.statDiameter.textContent = I18n.formatDiameter(body.diameterKm);
+        DOM.statMass.innerHTML = I18n.formatMass(body.massKg);
+        DOM.statMeanDistance.textContent = body.orbit ? I18n.formatAU(body.orbit.a) : I18n.formatAU(0);
+        DOM.statCurrentDistance.textContent = I18n.formatAU(body.state.rAU);
+        DOM.statPeriod.textContent = I18n.formatPeriod(body.orbit?.period);
+        DOM.statMoons.textContent = I18n.number(body.moonsKnown);
+        if (force) Renderer?.drawPortrait?.(true);
+      }
+
+      function updateHud(force = false, now = performance.now()) {
+        if (!force && now - State.lastHudUpdate < 100) return;
+        State.lastHudUpdate = now;
+        DOM.dateDisplay.textContent = I18n.formatDate(Clock.simJD);
+        DOM.speedDisplay.textContent = Clock.speed === 0 ? I18n.t('paused').toLocaleUpperCase(State.language) : `${I18n.number(Clock.speed, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}×`;
+        DOM.speedOutput.textContent = `${I18n.number(Clock.speed, { maximumFractionDigits: 0 })}×`;
+        DOM.zoomOutput.textContent = `${I18n.number(Camera.zoom, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}×`;
+        DOM.speedSlider.style.setProperty('--progress', `${Clock.speed}%`);
+        DOM.labelsToggle.setAttribute('aria-pressed', String(State.labels));
+        DOM.orbitsToggle.setAttribute('aria-pressed', String(State.orbits));
+        DOM.viewToggle.setAttribute('aria-pressed', String(State.view.perspective));
+        DOM.compressedScale.setAttribute('aria-pressed', String(State.view.scaleMode === 'compressed'));
+        DOM.relativeScale.setAttribute('aria-pressed', String(State.view.scaleMode === 'relative'));
+        updatePanel();
+      }
+
+      function setScale(mode) {
+        if (mode !== 'compressed' && mode !== 'relative' || mode === State.view.scaleMode) return;
+        State.view.scaleMode = mode;
+        State.view.targetScaleBlend = mode === 'relative' ? 1 : 0;
+        if (!State.followId) {
+          Camera.targetX = 0; Camera.targetY = 0;
+          Camera.targetZ = 0;
+          Camera.targetZoom = mode === 'relative' ? .2 : 1;
+        }
+        updateHud(true);
+      }
+
+      function toggleDock() {
+        const collapsed = DOM.controlPanel.classList.toggle('is-collapsed');
+        DOM.dockToggle.setAttribute('aria-expanded', String(!collapsed));
+        DOM.dockToggle.setAttribute('aria-label', I18n.t(collapsed ? 'controlsClosed' : 'controlsOpen'));
+        DOM.controlBody.inert = collapsed;
+        DOM.controlBody.toggleAttribute('inert', collapsed);
+        DOM.controlBody.setAttribute('aria-hidden', String(collapsed));
+      }
+
+      return { labelElements, initializeLabels, refreshLabels, updateLabels, selectBody, clearSelection, updatePanel, updateHud, setScale, toggleDock };
+    })();
+
+    const Renderer = (() => {
+      const ctx = DOM.canvas.getContext('2d', { alpha: false, desynchronized: true });
+      const portraitCtx = DOM.portrait.getContext('2d');
+      const minimapCtx = DOM.minimap.getContext('2d');
+      const renderOrder = [...Data.bodies];
+      const moonState = { x: 0, y: 0, z: 0, rAU: MOON_DATA.aKm / AU_KM, screenX: 0, screenY: 0, depth: 0, renderRadius: MOON_DATA.visualRadius };
+      const orbitPoint = { x: 0, y: 0, z: 0, screenX: 0, screenY: 0, depth: 0 };
+
+      function resizeSurface(canvas, context) {
+        const rect = canvas.getBoundingClientRect();
+        const width = Math.max(1, Math.round(rect.width * Layout.dpr));
+        const height = Math.max(1, Math.round(rect.height * Layout.dpr));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        context.setTransform(Layout.dpr, 0, 0, Layout.dpr, 0, 0);
+        return rect;
+      }
+
+      function resize() {
+        const rect = DOM.canvas.getBoundingClientRect();
+        Layout.width = rect.width;
+        Layout.height = rect.height;
+        Layout.dpr = Math.min(devicePixelRatio || 1, 2);
+        Layout.mobile = Layout.width < 768;
+        if (!Layout.mobile && DOM.controlPanel.classList.contains('is-collapsed')) {
+          DOM.controlPanel.classList.remove('is-collapsed');
+          DOM.controlBody.inert = false;
+          DOM.controlBody.removeAttribute('inert');
+          DOM.controlBody.setAttribute('aria-hidden', 'false');
+          DOM.dockToggle.setAttribute('aria-expanded', 'true');
+          DOM.dockToggle.setAttribute('aria-label', I18n.t('controlsOpen'));
+        }
+        const infoRect = DOM.infoPanel.getBoundingClientRect();
+        const bodyOpen = DOM.app.classList.contains('body-open');
+        DOM.controlPanel.inert = bodyOpen && Layout.mobile;
+        DOM.controlPanel.toggleAttribute('inert', bodyOpen && Layout.mobile);
+        DOM.controlPanel.setAttribute('aria-hidden', String(bodyOpen && Layout.mobile));
+        Layout.infoWidth = bodyOpen && !Layout.mobile ? infoRect.width + Math.max(20, Layout.width * .025) : 0;
+        Layout.focusX = Layout.mobile ? Layout.width * .5 : Layout.infoWidth ? (Layout.width - Layout.infoWidth) * .65 : Layout.width * .5;
+        Layout.focusY = Layout.mobile
+          ? bodyOpen ? Math.max(120, Math.min(Layout.height * .31, Layout.height - infoRect.height - 78)) : Layout.height * .43
+          : Layout.height * .47;
+        resizeSurface(DOM.canvas, ctx);
+        resizeSurface(DOM.portrait, portraitCtx);
+        resizeSurface(DOM.minimap, minimapCtx);
+      }
+
+      function drawBackground(now) {
+        ctx.setTransform(Layout.dpr, 0, 0, Layout.dpr, 0, 0);
+        ctx.fillStyle = '#02070b';
+        ctx.fillRect(0, 0, Layout.width, Layout.height);
+
+        const ambient = ctx.createRadialGradient(Layout.focusX - 120, Layout.focusY + 20, 0, Layout.focusX - 100, Layout.focusY + 20, Math.max(Layout.width, Layout.height) * .72);
+        ambient.addColorStop(0, 'rgba(18, 35, 46, .11)');
+        ambient.addColorStop(.55, 'rgba(4, 13, 20, .025)');
+        ambient.addColorStop(1, 'rgba(0, 2, 4, .38)');
+        ctx.fillStyle = ambient;
+        ctx.fillRect(0, 0, Layout.width, Layout.height);
+
+        drawStars(now);
+
+        const vignette = ctx.createRadialGradient(Layout.width * .48, Layout.height * .46, Math.min(Layout.width, Layout.height) * .18, Layout.width * .5, Layout.height * .48, Math.max(Layout.width, Layout.height) * .68);
+        vignette.addColorStop(0, 'rgba(0,0,0,0)');
+        vignette.addColorStop(.72, 'rgba(0,2,4,.08)');
+        vignette.addColorStop(1, 'rgba(0,2,4,.58)');
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, Layout.width, Layout.height);
+      }
+
+      function drawStars(now) {
+        const parallaxX = (-Camera.x * Camera.zoom * .018) % Layout.width;
+        const parallaxY = (-Camera.y * Camera.zoom * .012) % Layout.height;
+        for (const star of Data.stars) {
+          let x = (star.x * Layout.width + parallaxX + Layout.width) % Layout.width;
+          let y = (star.y * Layout.height + parallaxY + Layout.height) % Layout.height;
+          const pulse = star.twinkle && !REDUCED_MOTION ? .72 + .28 * Math.sin(now * .0012 + star.phase) : 1;
+          ctx.globalAlpha = star.alpha * pulse;
+          ctx.fillStyle = star.warm ? '#ffd49c' : '#d8edff';
+          ctx.beginPath();
+          ctx.arc(x, y, star.size, 0, TAU);
+          ctx.fill();
+          if (star.size > 1.25) {
+            ctx.globalAlpha = star.alpha * .2 * pulse;
+            ctx.fillRect(x - 3, y - .35, 6, .7);
+            ctx.fillRect(x - .35, y - 3, .7, 6);
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawOrbit(body, lineColor, lineWidth = .72, alpha = 1) {
+        if (!body.orbit) return;
+        const displayA = ScaleMapper.map(body.orbit.a);
+        const path = OrbitalEngine.sampleOrbit(body.orbit, 128);
+        ctx.beginPath();
+        for (let offset = 0; offset < path.length; offset += 3) {
+          orbitPoint.x = path[offset] * displayA;
+          orbitPoint.y = path[offset + 1] * displayA;
+          orbitPoint.z = path[offset + 2] * displayA;
+          Camera.project(orbitPoint, orbitPoint);
+          if (offset === 0) ctx.moveTo(orbitPoint.screenX, orbitPoint.screenY);
+          else ctx.lineTo(orbitPoint.screenX, orbitPoint.screenY);
+        }
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      function drawOrbits() {
+        if (!State.orbits) return;
+        for (const body of Data.bodies) {
+          if (!body.orbit) continue;
+          const selected = body.id === State.selectedId;
+          drawOrbit(body, selected ? 'rgba(244,166,42,.76)' : 'rgba(145,165,178,.28)', selected ? .95 : .65, 1);
+        }
+        const earth = Data.byId.get('earth');
+        if (earth) {
+          const path = OrbitalEngine.sampleOrbit(MOON_ORBIT, 48);
+          ctx.beginPath();
+          for (let offset = 0; offset < path.length; offset += 3) {
+            orbitPoint.x = earth.state.x + path[offset] * 18;
+            orbitPoint.y = earth.state.y + path[offset + 1] * 18;
+            orbitPoint.z = earth.state.z + path[offset + 2] * 18;
+            Camera.project(orbitPoint, orbitPoint);
+            if (offset === 0) ctx.moveTo(orbitPoint.screenX, orbitPoint.screenY);
+            else ctx.lineTo(orbitPoint.screenX, orbitPoint.screenY);
+          }
+          ctx.strokeStyle = 'rgba(162,184,198,.22)';
+          ctx.lineWidth = .55;
+          ctx.stroke();
+        }
+      }
+
+      function drawAsteroids() {
+        ctx.save();
+        ctx.fillStyle = '#d5b47b';
+        const updateWorldPositions = State.frame % 3 === 0;
+        for (const asteroid of Data.asteroids) {
+          if (updateWorldPositions) OrbitalEngine.positionAt(asteroid.orbit, Clock.simJD, ScaleMapper.map(asteroid.orbit.a), asteroid.state);
+          Camera.project(asteroid.state, asteroid.state);
+          if (asteroid.state.screenX < -3 || asteroid.state.screenX > Layout.width + 3 || asteroid.state.screenY < -3 || asteroid.state.screenY > Layout.height + 3) continue;
+          ctx.globalAlpha = asteroid.alpha;
+          const size = asteroid.size * Utils.clamp(Math.pow(Camera.zoom, .16), .65, 1.5);
+          ctx.fillRect(asteroid.state.screenX, asteroid.state.screenY, size, size);
+        }
+        ctx.restore();
+      }
+
+      function drawSun(context, body, x, y, radius, now, portrait = false) {
+        const pulse = REDUCED_MOTION ? 1 : 1 + Math.sin(now * .0021) * .025;
+        context.save();
+        if (!portrait) {
+          const halo3 = context.createRadialGradient(x, y, radius * .2, x, y, radius * 2.9 * pulse);
+          halo3.addColorStop(0, 'rgba(255,183,54,.30)');
+          halo3.addColorStop(.25, 'rgba(255,145,30,.16)');
+          halo3.addColorStop(.6, 'rgba(246,112,17,.055)');
+          halo3.addColorStop(1, 'rgba(244,110,18,0)');
+          context.fillStyle = halo3;
+          context.beginPath(); context.arc(x, y, radius * 3, 0, TAU); context.fill();
+
+          const rayRandom = Utils.seeded(0x501A2026);
+          context.strokeStyle = 'rgba(255,184,64,.24)';
+          for (let index = 0; index < 42; index += 1) {
+            const angle = index / 42 * TAU + rayRandom() * .08;
+            const inner = radius * (1.05 + rayRandom() * .08);
+            const outer = radius * (1.36 + rayRandom() * .62) * pulse;
+            context.globalAlpha = .18 + rayRandom() * .44;
+            context.lineWidth = .45 + rayRandom() * .75;
+            context.beginPath();
+            context.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
+            context.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
+            context.stroke();
+          }
+          context.globalAlpha = 1;
+        }
+
+        const globe = context.createRadialGradient(x - radius * .32, y - radius * .36, radius * .08, x, y, radius * 1.08);
+        globe.addColorStop(0, '#fffbd1');
+        globe.addColorStop(.23, '#ffe36d');
+        globe.addColorStop(.65, '#ffac29');
+        globe.addColorStop(1, '#e8680c');
+        context.shadowColor = 'rgba(255,154,28,.9)';
+        context.shadowBlur = portrait ? 28 : 20;
+        context.fillStyle = globe;
+        context.beginPath(); context.arc(x, y, radius, 0, TAU); context.fill();
+        context.shadowBlur = 0;
+
+        context.save();
+        context.beginPath(); context.arc(x, y, radius * .96, 0, TAU); context.clip();
+        const random = Utils.seeded(0x50FACE);
+        for (let index = 0; index < 45; index += 1) {
+          const angle = random() * TAU;
+          const distance = Math.sqrt(random()) * radius * .82;
+          const dot = radius * (.012 + random() * .045);
+          context.globalAlpha = .14 + random() * .23;
+          context.fillStyle = index % 3 ? '#fff49a' : '#e97516';
+          context.beginPath();
+          context.arc(x + Math.cos(angle + body.state.spin * .4) * distance, y + Math.sin(angle) * distance, dot, 0, TAU);
+          context.fill();
+        }
+        context.restore();
+        context.globalAlpha = 1;
+        context.strokeStyle = 'rgba(255,238,160,.8)';
+        context.lineWidth = .75;
+        context.beginPath(); context.arc(x, y, radius + .5, 0, TAU); context.stroke();
+        context.restore();
+      }
+
+      function wavyBand(context, x, y, radius, yOffset, amplitude, frequency, phase, color, width) {
+        context.beginPath();
+        for (let px = -radius * 1.1; px <= radius * 1.1; px += Math.max(1, radius / 40)) {
+          const py = yOffset + Math.sin(px / radius * frequency + phase) * radius * amplitude;
+          if (px === -radius * 1.1) context.moveTo(x + px, y + py);
+          else context.lineTo(x + px, y + py);
+        }
+        context.strokeStyle = color;
+        context.lineWidth = Math.max(.6, radius * width);
+        context.stroke();
+      }
+
+      function drawTexture(context, body, x, y, radius) {
+        const kind = body.visual.kind;
+        const spin = body.state.spin;
+        context.save();
+        context.beginPath(); context.arc(x, y, radius, 0, TAU); context.clip();
+
+        if (kind === 'jupiter') {
+          const bands = [
+            [-.72, '#705047', .13], [-.53, '#d8b88f', .09], [-.35, '#8c5d49', .12], [-.15, '#eed9ba', .12],
+            [.06, '#a87556', .13], [.27, '#e9c79a', .10], [.48, '#7c5142', .12], [.68, '#c99a70', .12]
+          ];
+          for (let index = 0; index < bands.length; index += 1) {
+            const [offset, color, width] = bands[index];
+            wavyBand(context, x, y, radius, offset * radius, .018 + index % 2 * .012, 4 + index % 3, spin * 1.8 + index, color, width);
+          }
+          context.fillStyle = 'rgba(177,74,43,.86)';
+          context.beginPath();
+          context.ellipse(x + radius * (.28 + Math.sin(spin) * .08), y + radius * .31, radius * .22, radius * .095, -.08, 0, TAU);
+          context.fill();
+          context.strokeStyle = 'rgba(247,191,135,.56)'; context.lineWidth = Math.max(.5, radius * .025); context.stroke();
+        } else if (kind === 'saturn') {
+          for (let index = -6; index <= 6; index += 1) {
+            wavyBand(context, x, y, radius, index * radius * .12, .006, 3, spin + index, index % 2 ? 'rgba(112,76,49,.42)' : 'rgba(255,232,175,.35)', .035);
+          }
+        } else if (kind === 'earth') {
+          context.fillStyle = '#4e9d73';
+          context.beginPath();
+          context.ellipse(x - radius * .22 + Math.sin(spin) * radius * .25, y - radius * .08, radius * .34, radius * .22, .45, 0, TAU);
+          context.ellipse(x + radius * .34 + Math.cos(spin * .8) * radius * .18, y + radius * .24, radius * .26, radius * .18, -.35, 0, TAU);
+          context.fill();
+          wavyBand(context, x, y, radius, -radius * .42, .05, 5, spin * 2, 'rgba(255,255,255,.68)', .035);
+          wavyBand(context, x, y, radius, radius * .12, .045, 6, -spin, 'rgba(255,255,255,.48)', .025);
+        } else if (kind === 'mars') {
+          context.fillStyle = 'rgba(90,43,32,.52)';
+          context.beginPath();
+          context.ellipse(x + Math.sin(spin) * radius * .32, y + radius * .06, radius * .34, radius * .2, .25, 0, TAU);
+          context.ellipse(x - radius * .45, y + radius * .3, radius * .25, radius * .11, -.4, 0, TAU);
+          context.fill();
+          context.fillStyle = 'rgba(245,228,205,.82)';
+          context.beginPath(); context.ellipse(x, y - radius * .88, radius * .42, radius * .14, 0, 0, TAU); context.fill();
+        } else if (kind === 'venus') {
+          for (let index = -4; index <= 4; index += 1) {
+            wavyBand(context, x, y, radius, index * radius * .18, .045, 5, spin * .7 + index * .8, index % 2 ? 'rgba(255,239,174,.38)' : 'rgba(126,76,39,.24)', .07);
+          }
+        } else if (kind === 'neptune') {
+          for (let index = -4; index <= 4; index += 1) {
+            wavyBand(context, x, y, radius, index * radius * .18, .025, 5, spin * 1.4 + index, index % 2 ? 'rgba(155,207,255,.28)' : 'rgba(8,29,96,.26)', .05);
+          }
+          context.fillStyle = 'rgba(9,30,89,.55)';
+          context.beginPath(); context.ellipse(x + radius * .25, y + radius * .12, radius * .22, radius * .11, -.1, 0, TAU); context.fill();
+        } else if (kind === 'uranus') {
+          context.globalAlpha = .34;
+          for (let index = -3; index <= 3; index += 1) {
+            wavyBand(context, x, y, radius, index * radius * .22, .008, 3, spin, index % 2 ? '#ddffff' : '#4aa1a9', .025);
+          }
+          context.globalAlpha = 1;
+        } else if (kind === 'pluto') {
+          context.fillStyle = 'rgba(238,218,188,.46)';
+          context.beginPath();
+          context.ellipse(x - radius * .15 + Math.sin(spin) * radius * .18, y - radius * .05, radius * .34, radius * .43, -.35, 0, TAU);
+          context.fill();
+          context.fillStyle = 'rgba(72,55,48,.32)';
+          context.beginPath(); context.arc(x + radius * .38, y + radius * .25, radius * .18, 0, TAU); context.fill();
+        } else if (kind === 'rock') {
+          const random = Utils.seeded(Utils.hashString(body.id));
+          for (let index = 0; index < 11; index += 1) {
+            const angle = random() * TAU;
+            const distance = Math.sqrt(random()) * radius * .74;
+            const crater = radius * (.035 + random() * .11);
+            context.fillStyle = `rgba(31,29,29,${.14 + random() * .24})`;
+            context.beginPath(); context.arc(x + Math.cos(angle + spin * .25) * distance, y + Math.sin(angle) * distance, crater, 0, TAU); context.fill();
+          }
+        }
+        context.restore();
+      }
+
+      function drawRingHalf(context, body, x, y, radius, front, portrait = false) {
+        const isUranus = body.id === 'uranus';
+        const rotation = isUranus ? 1.28 : -.12;
+        const flatten = isUranus ? .19 : .32;
+        const outer = radius * body.visual.rings;
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        const start = front ? 0 : Math.PI;
+        const end = front ? Math.PI : TAU;
+        const colors = isUranus
+          ? ['rgba(125,207,210,.28)', 'rgba(190,232,226,.22)']
+          : ['rgba(225,199,146,.72)', 'rgba(122,100,73,.62)', 'rgba(246,220,163,.46)'];
+        for (let index = 0; index < colors.length; index += 1) {
+          const factor = 1 - index * .13;
+          context.beginPath();
+          context.ellipse(0, 0, outer * factor, outer * flatten * factor, 0, start, end);
+          context.strokeStyle = colors[index];
+          context.lineWidth = Math.max(.6, radius * (portrait ? .045 : .032));
+          context.stroke();
+        }
+        context.restore();
+      }
+
+      function drawPlanetDisc(context, body, x, y, radius, portrait = false) {
+        context.save();
+        const colors = body.visual.colors;
+        const gradient = context.createRadialGradient(x - radius * .36, y - radius * .42, radius * .08, x + radius * .15, y + radius * .12, radius * 1.15);
+        gradient.addColorStop(0, colors[0]);
+        gradient.addColorStop(.55, colors[1]);
+        gradient.addColorStop(1, colors[2]);
+        context.shadowColor = colors[1];
+        context.shadowBlur = portrait ? 18 : Math.max(6, radius * .36);
+        context.fillStyle = gradient;
+        context.beginPath(); context.arc(x, y, radius, 0, TAU); context.fill();
+        context.shadowBlur = 0;
+        drawTexture(context, body, x, y, radius);
+
+        const shade = context.createRadialGradient(x - radius * .28, y - radius * .34, radius * .18, x + radius * .2, y + radius * .12, radius * 1.15);
+        shade.addColorStop(.42, 'rgba(255,255,255,0)');
+        shade.addColorStop(.78, 'rgba(0,4,8,.16)');
+        shade.addColorStop(1, 'rgba(0,2,5,.62)');
+        context.fillStyle = shade;
+        context.beginPath(); context.arc(x, y, radius, 0, TAU); context.fill();
+        context.strokeStyle = 'rgba(232,239,242,.26)';
+        context.lineWidth = portrait ? 1 : .6;
+        context.beginPath(); context.arc(x, y, radius - .3, 0, TAU); context.stroke();
+        context.restore();
+      }
+
+      function drawSelection(body) {
+        if (body.id !== State.selectedId) return;
+        const x = body.state.screenX, y = body.state.screenY;
+        const radius = body.state.renderRadius + 15;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(232,235,237,.78)';
+        ctx.lineWidth = .9;
+        const segment = Math.max(6, radius * .22);
+        const gap = Math.max(5, radius * .12);
+        const points = [[0,-1], [1,0], [0,1], [-1,0]];
+        for (const [dx, dy] of points) {
+          const tangentX = -dy, tangentY = dx;
+          const start = radius + gap;
+          ctx.beginPath();
+          ctx.moveTo(x + dx * start + tangentX * segment / 2, y + dy * start + tangentY * segment / 2);
+          ctx.lineTo(x + dx * start - tangentX * segment / 2, y + dy * start - tangentY * segment / 2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = .28;
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, TAU); ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawBody(body, now) {
+        const sizeScale = Utils.clamp(Math.pow(Camera.zoom, .20), .72, 2.2);
+        const radius = body.visual.baseRadius * sizeScale;
+        body.state.renderRadius = Math.max(body.id === 'pluto' ? 4.5 : 5, radius);
+        const x = body.state.screenX, y = body.state.screenY;
+        if (x < -radius * 4 || x > Layout.width + radius * 4 || y < -radius * 4 || y > Layout.height + radius * 4) return;
+        if (body.visual.rings) drawRingHalf(ctx, body, x, y, radius, false);
+        if (body.id === 'sun') drawSun(ctx, body, x, y, radius, now);
+        else drawPlanetDisc(ctx, body, x, y, radius);
+        if (body.visual.rings) drawRingHalf(ctx, body, x, y, radius, true);
+        drawSelection(body);
+      }
+
+      function drawMoon() {
+        const earth = Data.byId.get('earth');
+        OrbitalEngine.moonPosition(Clock.simJD, earth.state, moonState);
+        Camera.project(moonState, moonState);
+        const radius = Utils.clamp(MOON_DATA.visualRadius * Math.pow(Camera.zoom, .2), 2.2, 6.5);
+        moonState.renderRadius = radius;
+        const gradient = ctx.createRadialGradient(moonState.screenX - radius * .35, moonState.screenY - radius * .4, 0, moonState.screenX, moonState.screenY, radius);
+        gradient.addColorStop(0, '#f0ede8'); gradient.addColorStop(.62, '#9b9996'); gradient.addColorStop(1, '#36383b');
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = 'rgba(210,220,230,.35)'; ctx.shadowBlur = 5;
+        ctx.beginPath(); ctx.arc(moonState.screenX, moonState.screenY, radius, 0, TAU); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      function updateTooltip() {
+        if (HOVER_CAPABLE && (!QA_MODE || State.interaction.qaHoverReleased) && Number.isFinite(State.interaction.pointerX)) {
+          State.hoveredId = Picking.pick(State.interaction.pointerX, State.interaction.pointerY)?.id || null;
+        }
+        const body = State.hoveredId ? Data.byId.get(State.hoveredId) : null;
+        if (!body || !HOVER_CAPABLE) {
+          DOM.tooltip.classList.remove('is-visible');
+          DOM.tooltip.setAttribute('aria-hidden', 'true');
+          return;
+        }
+        DOM.tooltipName.textContent = body.names[State.language];
+        DOM.tooltipDistance.textContent = I18n.formatAU(body.state.rAU);
+        const pointerX = QA_MODE && !State.interaction.qaHoverReleased ? body.state.screenX : State.interaction.pointerX;
+        const pointerY = QA_MODE && !State.interaction.qaHoverReleased ? body.state.screenY : State.interaction.pointerY;
+        let x = Utils.clamp(pointerX ?? body.state.screenX, 8, Layout.width - 235);
+        let y = Utils.clamp(pointerY ?? body.state.screenY, 40, Layout.height - 40);
+        const estimate = { left: x + 12, right: x + 205, top: y - 20, bottom: y + 20 };
+        const controlRect = DOM.controlPanel.getBoundingClientRect();
+        if (estimate.left < controlRect.right && estimate.right > controlRect.left && estimate.top < controlRect.bottom && estimate.bottom > controlRect.top) {
+          y = Math.max(40, controlRect.top - 24);
+        }
+        const infoRect = DOM.infoPanel.getBoundingClientRect();
+        if (DOM.app.classList.contains('body-open') && estimate.right > infoRect.left) x = Math.max(8, infoRect.left - 220);
+        DOM.tooltip.style.left = `${x}px`;
+        DOM.tooltip.style.top = `${y}px`;
+        DOM.tooltip.classList.add('is-visible');
+        DOM.tooltip.setAttribute('aria-hidden', 'false');
+      }
+
+      function drawMain(now) {
+        drawBackground(now);
+        drawOrbits();
+        drawAsteroids();
+        for (const body of Data.bodies) Camera.project(body.state, body.state);
+        renderOrder.sort((a, b) => a.state.depth - b.state.depth);
+        for (const body of renderOrder) drawBody(body, now);
+        drawMoon();
+        UI.updateLabels();
+        updateTooltip();
+      }
+
+      function drawPortrait(force = false, now = performance.now()) {
+        if (!State.selectedId) return;
+        if (!force && now - State.lastPortraitUpdate < 90) return;
+        State.lastPortraitUpdate = now;
+        const body = Data.byId.get(State.selectedId);
+        const rect = DOM.portrait.getBoundingClientRect();
+        const width = rect.width, height = rect.height;
+        portraitCtx.setTransform(Layout.dpr, 0, 0, Layout.dpr, 0, 0);
+        portraitCtx.clearRect(0, 0, width, height);
+        const radius = Math.min(width, height) * (body.id === 'sun' ? .38 : body.visual.rings ? .29 : .42);
+        if (body.visual.rings) drawRingHalf(portraitCtx, body, width / 2, height / 2, radius, false, true);
+        if (body.id === 'sun') drawSun(portraitCtx, body, width / 2, height / 2, radius, now, true);
+        else drawPlanetDisc(portraitCtx, body, width / 2, height / 2, radius, true);
+        if (body.visual.rings) drawRingHalf(portraitCtx, body, width / 2, height / 2, radius, true, true);
+      }
+
+      function drawMinimap() {
+        const rect = DOM.minimap.getBoundingClientRect();
+        const width = rect.width, height = rect.height;
+        minimapCtx.setTransform(Layout.dpr, 0, 0, Layout.dpr, 0, 0);
+        minimapCtx.clearRect(0, 0, width, height);
+        const centerX = width / 2, centerY = height * .55;
+        const outerA = ScaleMapper.map(PLUTO_A);
+        const scale = (width * .48) / Math.max(1, outerA * (1 + .24880766));
+        const pitch = 24 * DEG;
+
+        minimapCtx.save();
+        minimapCtx.beginPath();
+        minimapCtx.rect(0, 0, width, height);
+        minimapCtx.clip();
+        minimapCtx.translate(centerX, centerY);
+        for (const body of Data.bodies) {
+          if (!body.orbit) continue;
+          minimapCtx.beginPath();
+          const displayA = ScaleMapper.map(body.orbit.a);
+          const path = OrbitalEngine.sampleOrbit(body.orbit, 64);
+          for (let offset = 0; offset < path.length; offset += 3) {
+            const worldX = path[offset] * displayA;
+            const worldY = path[offset + 1] * displayA;
+            const worldZ = path[offset + 2] * displayA;
+            const x = worldX * scale;
+            const y = (worldY * Math.cos(pitch) - worldZ * Math.sin(pitch)) * scale;
+            if (offset === 0) minimapCtx.moveTo(x, y); else minimapCtx.lineTo(x, y);
+          }
+          minimapCtx.strokeStyle = body.id === State.selectedId ? 'rgba(244,166,42,.56)' : 'rgba(137,164,181,.24)';
+          minimapCtx.lineWidth = body.id === State.selectedId ? .75 : .5;
+          minimapCtx.stroke();
+        }
+        for (const body of Data.bodies) {
+          const x = body.state.x * scale;
+          const y = (body.state.y * Math.cos(pitch) - body.state.z * Math.sin(pitch)) * scale;
+          const radius = body.id === 'sun' ? 5 : Utils.clamp(body.visual.baseRadius * .09, 1.2, 4.4);
+          minimapCtx.fillStyle = body.id === 'sun' ? '#f4a62a' : body.visual.colors[0];
+          minimapCtx.shadowColor = body.visual.colors[1];
+          minimapCtx.shadowBlur = body.id === 'sun' ? 9 : 3;
+          minimapCtx.beginPath(); minimapCtx.arc(x, y, radius, 0, TAU); minimapCtx.fill();
+        }
+        minimapCtx.shadowBlur = 0;
+
+        const viewportRight = Math.max(0, Layout.width - Layout.infoWidth);
+        const viewportCorners = [
+          Camera.screenToPlane(0, 0),
+          Camera.screenToPlane(viewportRight, 0),
+          Camera.screenToPlane(viewportRight, Layout.height),
+          Camera.screenToPlane(0, Layout.height)
+        ];
+        minimapCtx.strokeStyle = 'rgba(232,235,237,.62)';
+        minimapCtx.lineWidth = .8;
+        minimapCtx.beginPath();
+        viewportCorners.forEach((point, index) => {
+          const x = point.x * scale;
+          const y = (point.y * Math.cos(pitch) - Camera.z * Math.sin(pitch)) * scale;
+          if (index === 0) minimapCtx.moveTo(x, y); else minimapCtx.lineTo(x, y);
+        });
+        minimapCtx.closePath();
+        minimapCtx.stroke();
+        minimapCtx.restore();
+      }
+
+      return { resize, drawMain, drawPortrait, drawMinimap, moonState };
+    })();
+
+    const Picking = {
+      pick(screenX, screenY) {
+        let winner = null;
+        let winnerDepth = -Infinity;
+        let winnerDistance = Infinity;
+        for (const body of Data.bodies) {
+          const dx = screenX - body.state.screenX;
+          const dy = screenY - body.state.screenY;
+          const radius = Math.max(14, body.state.renderRadius + 4);
+          let hit = dx * dx + dy * dy <= radius * radius;
+          let normalizedDistance = Math.sqrt(dx * dx + dy * dy) / radius;
+          if (!hit && body.visual.rings) {
+            const rotation = body.id === 'uranus' ? 1.28 : -.12;
+            const cos = Math.cos(-rotation), sin = Math.sin(-rotation);
+            const localX = dx * cos - dy * sin;
+            const localY = dx * sin + dy * cos;
+            const outer = body.state.renderRadius * body.visual.rings;
+            const flatten = body.id === 'uranus' ? .19 : .32;
+            const ellipse = Math.sqrt((localX * localX) / (outer * outer) + (localY * localY) / (outer * outer * flatten * flatten));
+            hit = ellipse <= 1.15 && ellipse >= .42;
+            normalizedDistance = ellipse;
+          }
+          if (hit && (body.state.depth > winnerDepth || body.state.depth === winnerDepth && normalizedDistance < winnerDistance)) {
+            winner = body;
+            winnerDepth = body.state.depth;
+            winnerDistance = normalizedDistance;
+          }
+        }
+        return winner;
+      }
+    };
+
+    const Lifecycle = {
+      controller: new AbortController(),
+      resizeObserver: null,
+      rafId: 0,
+      lastFrameTime: 0,
+      get signal() { return this.controller.signal; },
+      start() {
+        if (this.rafId || State.destroyed || document.hidden) return;
+        this.lastFrameTime = performance.now();
+        State.metrics.frames = 0;
+        State.metrics.lastSample = this.lastFrameTime;
+        this.rafId = requestAnimationFrame(frame);
+      },
+      stop() {
+        if (this.rafId) cancelAnimationFrame(this.rafId);
+        this.rafId = 0;
+        clearTimeout(State.interaction.clickTimer);
+        State.interaction.clickTimer = 0;
+        State.interaction.pointers.clear();
+        State.interaction.dragging = false;
+        State.interaction.pinchDistance = 0;
+        DOM.canvas.classList.remove('is-dragging');
+      },
+      destroy() {
+        if (State.destroyed) return;
+        State.destroyed = true;
+        this.stop();
+        clearTimeout(State.interaction.clickTimer);
+        this.resizeObserver?.disconnect();
+        this.controller.abort();
+      }
+    };
+
+    const Interactions = (() => {
+      function canvasPoint(event) {
+        const rect = DOM.canvas.getBoundingClientRect();
+        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      }
+
+      function handleSingleClick(bodyId) {
+        if (bodyId) UI.selectBody(bodyId);
+        else UI.clearSelection();
+      }
+
+      function recenter() {
+        clearTimeout(State.interaction.clickTimer);
+        Camera.overview(true);
+        DOM.liveRegion.textContent = I18n.t('overview');
+      }
+
+      function pointerDown(event) {
+        const point = canvasPoint(event);
+        DOM.canvas.setPointerCapture?.(event.pointerId);
+        State.interaction.pointers.set(event.pointerId, point);
+        State.interaction.startX = State.interaction.lastX = point.x;
+        State.interaction.startY = State.interaction.lastY = point.y;
+        State.interaction.moved = false;
+        if (State.interaction.pointers.size === 2) {
+          const [first, second] = [...State.interaction.pointers.values()];
+          State.interaction.pinchDistance = Math.hypot(second.x - first.x, second.y - first.y);
+        }
+      }
+
+      function pointerMove(event) {
+        const point = canvasPoint(event);
+        State.interaction.pointerX = point.x;
+        State.interaction.pointerY = point.y;
+        if (QA_MODE) State.interaction.qaHoverReleased = true;
+
+        if (State.interaction.pointers.has(event.pointerId)) State.interaction.pointers.set(event.pointerId, point);
+        if (State.interaction.pointers.size >= 2) {
+          const [first, second] = [...State.interaction.pointers.values()];
+          const distance = Math.hypot(second.x - first.x, second.y - first.y);
+          if (State.interaction.pinchDistance > 0 && distance > 0) {
+            const midpointX = (first.x + second.x) / 2;
+            const midpointY = (first.y + second.y) / 2;
+            Camera.zoomAt(distance / State.interaction.pinchDistance, midpointX, midpointY);
+          }
+          State.interaction.pinchDistance = distance;
+          State.interaction.moved = true;
+          event.preventDefault();
+          return;
+        }
+
+        if (State.interaction.pointers.has(event.pointerId) && event.buttons !== 0) {
+          const total = Math.hypot(point.x - State.interaction.startX, point.y - State.interaction.startY);
+          if (total > 6) {
+            State.interaction.dragging = true;
+            State.interaction.moved = true;
+            DOM.canvas.classList.add('is-dragging');
+          }
+          if (State.interaction.dragging) {
+            Camera.panBy(point.x - State.interaction.lastX, point.y - State.interaction.lastY);
+            State.interaction.lastX = point.x;
+            State.interaction.lastY = point.y;
+            event.preventDefault();
+            return;
+          }
+        }
+
+        if (event.pointerType === 'mouse' && event.buttons === 0) {
+          State.hoveredId = Picking.pick(point.x, point.y)?.id || null;
+        }
+      }
+
+      function pointerUp(event) {
+        const point = canvasPoint(event);
+        const wasMoved = State.interaction.moved || State.interaction.pointers.size > 1;
+        State.interaction.pointers.delete(event.pointerId);
+        if (State.interaction.pointers.size < 2) State.interaction.pinchDistance = 0;
+        State.interaction.dragging = false;
+        DOM.canvas.classList.remove('is-dragging');
+        if (wasMoved) return;
+
+        const now = performance.now();
+        if (event.pointerType !== 'mouse' && now - State.interaction.lastTap < 280) {
+          State.interaction.lastTap = 0;
+          recenter();
+          return;
+        }
+        State.interaction.lastTap = now;
+        clearTimeout(State.interaction.clickTimer);
+        const pickedId = Picking.pick(point.x, point.y)?.id || null;
+        State.interaction.clickTimer = setTimeout(() => handleSingleClick(pickedId), 220);
+      }
+
+      function pointerCancel(event) {
+        State.interaction.pointers.delete(event.pointerId);
+        State.interaction.dragging = false;
+        State.interaction.moved = false;
+        State.interaction.pinchDistance = 0;
+        DOM.canvas.classList.remove('is-dragging');
+      }
+
+      function wheel(event) {
+        event.preventDefault();
+        const point = canvasPoint(event);
+        Camera.zoomAt(Math.exp(-event.deltaY * .0015), point.x, point.y);
+      }
+
+      function keydown(event) {
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) {
+          if (event.key !== 'Escape') return;
+        }
+        if (event.key === 'Escape') UI.clearSelection();
+        else if (event.key === '+' || event.key === '=') Camera.zoomAt(1.25);
+        else if (event.key === '-' || event.key === '_') Camera.zoomAt(1 / 1.25);
+        else if (event.key.toLowerCase() === 'l') { State.labels = !State.labels; UI.updateHud(true); }
+        else if (event.key.toLowerCase() === 'o') { State.orbits = !State.orbits; UI.updateHud(true); }
+        else if (event.key.toLowerCase() === 'v') {
+          State.view.perspective = !State.view.perspective;
+          State.view.targetPitch = State.view.perspective ? 38 * DEG : 0;
+          UI.updateHud(true);
+        } else return;
+        event.preventDefault();
+      }
+
+      function attach() {
+        const options = { signal: Lifecycle.signal };
+        DOM.canvas.addEventListener('pointerdown', pointerDown, options);
+        DOM.canvas.addEventListener('pointermove', pointerMove, options);
+        DOM.canvas.addEventListener('pointerup', pointerUp, options);
+        DOM.canvas.addEventListener('pointercancel', pointerCancel, options);
+        DOM.canvas.addEventListener('pointerleave', event => {
+          if (event.pointerType === 'mouse' && (!QA_MODE || State.interaction.qaHoverReleased)) State.hoveredId = null;
+        }, options);
+        DOM.canvas.addEventListener('wheel', wheel, { signal: Lifecycle.signal, passive: false });
+        DOM.canvas.addEventListener('dblclick', event => { event.preventDefault(); recenter(); }, options);
+        window.addEventListener('keydown', keydown, options);
+
+        DOM.speedSlider.addEventListener('input', () => { Clock.speed = Number(DOM.speedSlider.value); UI.updateHud(true); }, options);
+        DOM.zoomIn.addEventListener('click', () => Camera.zoomAt(1.25), options);
+        DOM.zoomOut.addEventListener('click', () => Camera.zoomAt(1 / 1.25), options);
+        DOM.labelsToggle.addEventListener('click', () => { State.labels = !State.labels; UI.updateHud(true); }, options);
+        DOM.orbitsToggle.addEventListener('click', () => { State.orbits = !State.orbits; UI.updateHud(true); }, options);
+        DOM.viewToggle.addEventListener('click', () => {
+          State.view.perspective = !State.view.perspective;
+          State.view.targetPitch = State.view.perspective ? 38 * DEG : 0;
+          UI.updateHud(true);
+        }, options);
+        DOM.compressedScale.addEventListener('click', () => UI.setScale('compressed'), options);
+        DOM.relativeScale.addEventListener('click', () => UI.setScale('relative'), options);
+        DOM.closeInfo.addEventListener('click', () => UI.clearSelection(), options);
+        DOM.bodySelect.addEventListener('change', () => UI.selectBody(DOM.bodySelect.value), options);
+        DOM.dockToggle.addEventListener('click', UI.toggleDock, options);
+        document.querySelectorAll('[data-lang]').forEach(button => button.addEventListener('click', () => I18n.setLanguage(button.dataset.lang), options));
+      }
+
+      return { attach, recenter };
+    })();
+
+    const SelfTest = (() => {
+      function run() {
+        const results = [];
+        const assert = (name, condition, detail = '') => results.push({ name, pass: Boolean(condition), detail });
+        const orbiting = BODY_DATA.filter(body => body.orbit);
+
+        for (const body of orbiting) {
+          for (const testM of [0, .2, 1.7, Math.PI, 5.9]) {
+            const E = OrbitalEngine.solveKepler(testM, body.orbit.e);
+            const normalizedM = Utils.normAngle(testM);
+            const residual = Math.abs(E - body.orbit.e * Math.sin(E) - normalizedM);
+            assert(`Kepler residual — ${body.id} @ ${testM}`, residual < 1e-10, `${residual}`);
+          }
+          const peri = body.orbit.a * (1 - body.orbit.e * Math.cos(0));
+          const aphe = body.orbit.a * (1 - body.orbit.e * Math.cos(Math.PI));
+          assert(`Perihelion — ${body.id}`, Math.abs(peri - body.orbit.a * (1 - body.orbit.e)) < 1e-12);
+          assert(`Aphelion — ${body.id}`, Math.abs(aphe - body.orbit.a * (1 + body.orbit.e)) < 1e-12);
+          const first = { x: 0, y: 0, z: 0 };
+          const second = { x: 0, y: 0, z: 0 };
+          OrbitalEngine.positionAt(body.orbit, J2000_JD + 123.456, body.orbit.a, first);
+          OrbitalEngine.positionAt(body.orbit, J2000_JD + 123.456 + body.orbit.period, body.orbit.a, second);
+          const error = Math.hypot(first.x - second.x, first.y - second.y, first.z - second.z);
+          assert(`Periodicity — ${body.id}`, error < 1e-8, `${error}`);
+        }
+
+        const moonA = { x: 0, y: 0, z: 0 }, moonB = { x: 0, y: 0, z: 0 };
+        OrbitalEngine.positionAt(MOON_ORBIT, J2000_JD, 18, moonA);
+        OrbitalEngine.positionAt(MOON_ORBIT, J2000_JD + MOON_DATA.period, 18, moonB);
+        assert('Moon periodicity', Math.hypot(moonA.x - moonB.x, moonA.y - moonB.y, moonA.z - moonB.z) < 1e-8);
+
+        const advance = (jd, dt, speed) => jd + Math.min(dt, .1) * speed;
+        assert('Clock 0×', advance(100, .1, 0) === 100);
+        assert('Clock 1×', Math.abs(advance(100, .1, 1) - 100.1) < 1e-12);
+        assert('Clock 100×', Math.abs(advance(100, .1, 100) - 110) < 1e-12);
+
+        let previous = -Infinity;
+        let monotonic = true;
+        for (const body of orbiting) {
+          const mapped = ScaleMapper.compressed(body.orbit.a, 500);
+          if (mapped <= previous) monotonic = false;
+          previous = mapped;
+        }
+        assert('Compressed scale monotonic', monotonic);
+        for (const body of orbiting) {
+          const ratio = ScaleMapper.relative(body.orbit.a, 500) / ScaleMapper.relative(1.00000261, 500);
+          assert(`Relative scale ratio — ${body.id}`, Math.abs(ratio - body.orbit.a / 1.00000261) < 1e-9);
+        }
+
+        const asteroidA = Data.createAsteroids(12345);
+        const asteroidB = Data.createAsteroids(12345);
+        const deterministic = asteroidA.every((item, index) => item.orbit.a === asteroidB[index].orbit.a && item.orbit.e === asteroidB[index].orbit.e && item.orbit.m0 === asteroidB[index].orbit.m0);
+        assert('Asteroid reproducibility', deterministic && asteroidA.length === 480);
+        assert('Asteroid bounds', asteroidA.every(item => item.orbit.a >= 2.1 && item.orbit.a <= 3.3));
+
+        const failed = results.filter(result => !result.pass);
+        console.groupCollapsed(`[Orbitalis] ${results.length - failed.length}/${results.length} self-tests passed`);
+        console.table(results);
+        console.groupEnd();
+        DOM.selftestBadge.textContent = failed.length ? `${I18n.t('selftestFail')} · ${failed.length}` : `${I18n.t('selftestPass')} · ${results.length}`;
+        DOM.selftestBadge.classList.add('is-visible', failed.length ? 'is-fail' : 'is-pass');
+        return { pass: failed.length === 0, results };
+      }
+      return { run };
+    })();
+
+    function updateVisualSpin(dt) {
+      if (Clock.speed <= 0) return;
+      for (const body of Data.bodies) {
+        const period = Math.abs(body.rotationDays || 1);
+        const trueRps = Clock.speed / period;
+        const visibleRps = Utils.clamp(trueRps, 1 / 30, 1 / 3);
+        body.state.spin = Utils.normAngle(body.state.spin + dt * visibleRps * TAU * Math.sign(body.rotationDays || 1));
+      }
+    }
+
+    function frame(now) {
+      if (State.destroyed) return;
+      Lifecycle.rafId = 0;
+      if (!Lifecycle.lastFrameTime) Lifecycle.lastFrameTime = now;
+      const dt = Math.min((now - Lifecycle.lastFrameTime) / 1000, .1);
+      Lifecycle.lastFrameTime = now;
+
+      Clock.advance(dt);
+      updateVisualSpin(dt);
+      State.view.pitch = Utils.damp(State.view.pitch, State.view.targetPitch, dt, .65);
+      State.view.scaleBlend = Utils.damp(State.view.scaleBlend, State.view.targetScaleBlend, dt, .9);
+      OrbitalEngine.updateBodies(Clock.simJD, value => ScaleMapper.map(value));
+      Camera.update(dt);
+      Renderer.drawMain(now);
+      if ((State.frame++ & 1) === 0) Renderer.drawMinimap();
+      Renderer.drawPortrait(false, now);
+      UI.updateHud(false, now);
+      State.metrics.frames += 1;
+      if (!State.metrics.lastSample) State.metrics.lastSample = now;
+      if (now - State.metrics.lastSample >= 1000) {
+        State.metrics.fps = State.metrics.frames * 1000 / (now - State.metrics.lastSample);
+        DOM.app.dataset.fps = State.metrics.fps.toFixed(1);
+        State.metrics.frames = 0;
+        State.metrics.lastSample = now;
+      }
+      Lifecycle.rafId = requestAnimationFrame(frame);
+    }
+
+    function initialize() {
+      Renderer.resize();
+      OrbitalEngine.updateBodies(Clock.simJD, value => ScaleMapper.map(value));
+      Camera.initialize();
+      UI.initializeLabels();
+      DOM.speedSlider.value = String(Clock.speed);
+      I18n.setLanguage(State.language, false);
+      UI.updateHud(true);
+      Interactions.attach();
+      Renderer.drawPortrait(true);
+
+      Lifecycle.resizeObserver = new ResizeObserver(() => {
+        Renderer.resize();
+        OrbitalEngine.updateBodies(Clock.simJD, value => ScaleMapper.map(value));
+      });
+      Lifecycle.resizeObserver.observe(DOM.app);
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) Lifecycle.stop();
+        else Lifecycle.start();
+      }, { signal: Lifecycle.signal });
+      window.addEventListener('pagehide', event => {
+        Lifecycle.stop();
+        if (!event.persisted) Lifecycle.destroy();
+      }, { signal: Lifecycle.signal });
+      window.addEventListener('pageshow', event => {
+        if (event.persisted) Lifecycle.start();
+      }, { signal: Lifecycle.signal });
+
+      if (SELF_TEST_MODE) window.setTimeout(() => { window.__ORBITALIS_SELFTEST__ = SelfTest.run(); }, 0);
+      Lifecycle.start();
+    }
+
+    window.__ORBITALIS__ = {
+      version: '1.0.0', BODY_DATA, state: State, clock: Clock, camera: Camera,
+      select: id => UI.selectBody(id), clear: () => UI.clearSelection(), overview: () => Camera.overview(true),
+      setScale: mode => UI.setScale(mode), setLanguage: language => I18n.setLanguage(language),
+      runSelfTests: () => SelfTest.run()
+    };
+
+    initialize();
+  </script>
+</body>
+</html>
