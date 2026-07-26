@@ -48,7 +48,7 @@ Puis ouvrir [http://localhost:4173](http://localhost:4173).
 | Afficher ou masquer les orbites | Contrôle **Orbites** | `O` |
 | Changer de perspective | Contrôle **Perspective** | `V` |
 
-`1×` correspond à un jour simulé par seconde. La vitesse peut varier de `0×` à `100×`.
+La simulation démarre à `1×`, soit un jour simulé par seconde. La vitesse peut varier de `0×` à `100×`.
 
 ## Modes de QA
 

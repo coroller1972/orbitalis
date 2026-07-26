@@ -8,7 +8,7 @@
 - Comparaison complète : `/private/tmp/orbitalis-design-comparison.png`.
 - Comparaison ciblée de la fiche : `/private/tmp/orbitalis-info-comparison.png`.
 - Viewport de référence et de capture : `1672 × 941` pixels CSS, DPR `1`. Les deux images font exactement `1672 × 941`; aucune normalisation de densité n’a été nécessaire.
-- État QA : français forcé, date figée au 26 juillet 2026, Jupiter sélectionnée et suivie, Mars survolée, `42×`, zoom `1,8×`, perspective, orbites, noms et échelle condensée.
+- État QA : français forcé, date figée au 26 juillet 2026, Jupiter sélectionnée et suivie, Mars survolée, `1×`, zoom `1,8×`, perspective, orbites, noms et échelle condensée.
 - Inspection : référence, rendu, comparaison côte à côte et crop de la fiche examinés avec l’outil d’inspection d’images; responsive inspecté à `1024 × 768` et `390 × 844`.
 
 ## Surfaces comparées
@@ -58,7 +58,7 @@
 ## Vérifications fonctionnelles
 
 - `?selftest=1` : `88/88` tests réussis (résidu de Kepler, périhélie/aphélie, périodicité des neuf corps et de la Lune, temps `0×/1×/100×`, échelles et astéroïdes seedés).
-- État initial normal : UTC réelle, `42×`, `1,8×`, Jupiter sélectionnée/suivie; en mouvement réduit : `0×`, `EN PAUSE`, transitions ramenées à `1e-06s`.
+- État initial normal : UTC réelle, `1×`, `1,8×`, Jupiter sélectionnée/suivie; en mouvement réduit : `0×`, `EN PAUSE`, transitions ramenées à `1e-06s`.
 - Interactions vérifiées : sélection Canvas et DOM, suivi continu jusqu’à Mercure à `100×`, pan libérant le suivi, molette ancrée, zoom `−/+`, clic/double-clic, fermeture/Échap, dock mobile, toggles, deux vues, deux échelles et traduction FR/EN immédiate.
 - Suivi haute vitesse : Mercure mesurée exactement au focus mobile (`195`, `261,64`) à `100×`.
 - Responsive : captures `1024 × 768` et `390 × 844`; bottom sheet à `57,1 vh`, mini-carte `132 × 72`, aucune cible active sous 44 px.

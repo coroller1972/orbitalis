@@ -314,7 +314,7 @@
     }
 
     input[type="range"] {
-      --progress: 42%;
+      --progress: 1%;
       width: 100%;
       height: 24px;
       margin: 0;
@@ -891,7 +891,7 @@
     </header>
 
     <div class="hud sim-status" aria-live="off">
-      <div class="sim-status-main"><span id="dateDisplay">—</span> <span aria-hidden="true">·</span> <span id="speedDisplay">42,0×</span></div>
+      <div class="sim-status-main"><span id="dateDisplay">—</span> <span aria-hidden="true">·</span> <span id="speedDisplay">1,0×</span></div>
       <div class="status-rule"></div>
     </div>
 
@@ -914,8 +914,8 @@
       <div class="control-body" id="controlBody">
         <div class="control-row speed-row">
           <label class="control-label" for="speedSlider" data-i18n="time">Temps</label>
-          <input id="speedSlider" type="range" min="0" max="100" step="1" value="42" aria-describedby="speedHint">
-          <output class="speed-output" id="speedOutput" for="speedSlider">42×</output>
+          <input id="speedSlider" type="range" min="0" max="100" step="1" value="1" aria-describedby="speedHint">
+          <output class="speed-output" id="speedOutput" for="speedSlider">1×</output>
           <span class="sr-only" id="speedHint" data-i18n="speedHint">1× égale un jour simulé par seconde</span>
         </div>
         <div class="control-row zoom-row">
@@ -1286,7 +1286,7 @@
 
     const Clock = {
       simJD: QA_MODE ? Date.UTC(2026, 6, 26, 12) / 86400000 + UNIX_EPOCH_JD : Date.now() / 86400000 + UNIX_EPOCH_JD,
-      speed: REDUCED_MOTION ? 0 : 42,
+      speed: REDUCED_MOTION ? 0 : 1,
       advance(dt) { if (!QA_MODE) this.simJD += Math.min(dt, .1) * this.speed; },
       resetToNow() { this.simJD = Date.now() / 86400000 + UNIX_EPOCH_JD; }
     };
