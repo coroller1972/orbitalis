@@ -51,4 +51,5 @@ test-results/
 *.tmp
 *.temp
 
+design-qa.md
 mockup-?.png
